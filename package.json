@@ -1,6 +1,6 @@
 {
   "name": "threeshaderhelper",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A helper to quickly set up ThreeJS Shader Materials and uniform manipulation from text. Meant to mimic ShaderToy. ",
   "main": "THREEShaderHelper.js",
   "type":"module",

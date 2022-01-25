@@ -100,7 +100,7 @@ void main(){
             iMouse:     {value:[0,0,0,0]},  //XY mouse coordinates, z, w are last click location
             iMouseInput: {value:false}, //Click occurred before past frame?
             iImage:     {type:'t', value:new THREE.Texture(canvas)}, //Texture map returned from shader (to keep state)
-            iAudio:           {value:new Array(2048).fill(0)},     //Audio analyser FFT, array of 256, values max at 255
+            iAudio:           {value:new Array(256).fill(0)},     //Audio analyser FFT, array of 256, values max at 255
             iHRV:             {value:0},       //Heart Rate Variability (values typically 5-30)
             iHEG:             {value:0},       //HEG change from baseline, starts at zero and can go positive or negative
             iHR:              {value:0},       //Heart Rate in BPM
@@ -138,7 +138,7 @@ void main(){
             iMouse:           {default:[0,0,0,0],min:0,max:8192, step:1},  //XY mouse coordinates, z, w are last click location
             iMouseInput:      {default:false}, //Click occurred before past frame?
             iImage:           {type:'t', default:new THREE.Texture(canvas)}, //Texture map returned from shader (to keep state)
-            iAudio:           {default: new Array(2048).fill(0), min:0,max:255, step:1},              //Audio analyser FFT, array of 256, values max at 255
+            iAudio:           {default: new Array(256).fill(0), min:0,max:255, step:1},              //Audio analyser FFT, array of 256, values max at 255
             iHRV:             {default:0, min:0, max:40,step:0.5},                           //Heart Rate Variability (values typically 5-30)
             iHEG:             {default:0, min:-3, max:3,step:0.1},                           //HEG change from baseline, starts at zero and can go positive or negative
             iHR:              {default:0, min:0, max:240,step:1},                            //Heart Rate in BPM
@@ -493,9 +493,9 @@ void main(){
                 material.uniforms.iImage.value = new THREE.Texture(canvas);
             } else if (name === 'iAudio') {
                 if(this.audio) { //using Sound.js
-                    material.uniforms.iFFT.value = this.downsample(Array.from(this.audio.getAnalyzerData()),256);
+                    material.uniforms.iAudio.value = this.downsample(Array.from(this.audio.getAnalyzerData()),256);
                 } else {
-                    material.uniforms.iFFT.value = this.uniforms.iFFT.value;
+                    material.uniforms.iAudio.value = this.uniforms.iAudio.value;
                 }
             } else if (this.uniformSettings[name]) { //arbitrary uniforms
                 if(this.uniformSettings[name].callback) {
@@ -556,6 +556,8 @@ void main(){
                 } else if (name === 'iAudio') {
                     if(this.audio) {//using Sound.js
                         value = Array.from(this.audio.getAnalyzerData().slice(0,256));
+                    } else {
+                        material.uniforms.iAudio.value = this.uniforms.iAudio.value;
                     }
                 } else if (this.uniformSettings[name]) { //arbitrary uniforms
                     if(this.uniformSettings[name].callback) {
