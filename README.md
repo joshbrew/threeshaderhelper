@@ -8,7 +8,7 @@ For now, see [Sensorium](https://app.brainsatplay.com#Sensorium) in Brains@Play 
 More docs incoming for this powerful little tool, otherwise give the code a try and see the test function createRenderer which includes camera, GUI & orbit controls
 
 From [Sensorium](https://app.brainsatplay.com#Sensorium) biofeedback demo.
-![Capture](./Capture.png)
+![Capture](./Capture.PNG)
 
 Class methods
 ```js
