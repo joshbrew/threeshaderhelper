@@ -1,0 +1,29 @@
+{
+  "name": "threeshaderhelper",
+  "version": "0.1.0",
+  "description": "A helper to quickly set up ThreeJS Shader Materials and uniform manipulation from text. Meant to mimic ShaderToy. ",
+  "main": "THREEShaderHelper.js",
+  "type":"module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "three",
+    "shader",
+    "render",
+    "material"
+  ],
+  "author": "Joshua Brewster and Garrett Flynn",
+  "license": "AGPL-3.0-or-later",
+  "dependencies": {
+    "three":"^0.136.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brainsaplay/threeshaderhelper"
+  },
+  "bugs": {
+    "url": "https://github.com/brainsatplay/threeshaderhelper/issues"
+  },
+  "homepage": "https://github.com/brainsatplay/threeshaderhelper#readme"
+}
