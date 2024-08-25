@@ -1,5 +1,7 @@
 ## THREEShaderHelper
 
+`npm i threeshaderhelper`
+
 This is a fairly straightforward utility for ThreeJS to create shader materials and apply any shaders from text with the ability to push uniform updates. It replicates a lot of functionality from ShaderToy, but we extended it to let us use arbitrary uniforms which can be generated from the shader text itself. We use it for biofeedback. It also includes its own audio decoder to get audio FFT data into the shader.
 
 ## Example
@@ -18,8 +20,8 @@ then
 
 // Import necessary dependencies
 import * as THREE from 'three'
-import { THREEShaderHelper } from '../THREEShaderHelper'; // Assuming this is the file where your shader helper class is defined
-import { Sounds } from '../sound'; // Assuming this is where your Sounds class is defined
+import { THREEShaderHelper, Sounds } from 'threeshaderhelper/THREEShaderHelper'; // Assuming this is the file where your shader helper class is defined
+import { Sounds } from 'threeshaderhelper/sound'; // Assuming this is where your Sounds class is defined
 
 // Function to run the default shader and play a sound
 export function main() {
