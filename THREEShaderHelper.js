@@ -1,222 +1,316 @@
-import * as THREE from 'three'
-import { Texture } from 'three';
-import { GUI } from 'three/examples/jsm/libs/dat.gui.module'
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import * as THREE from 'three';
+import { GUI } from 'dat.gui'
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { Sounds } from './sound';
 
-import uvgrid from './uvgrid.png'
-
-/*
-This class cretes THREE.js shader meshes that have responsive uniforms to bci and shadertoy presets
-
-Usage:
-
-let helper = new THREEShaderHelper(session,canvas);
-
-three.scene.add(this.meshes[0]);
-
-//you can add meshes, uniforms, and a bunch of other things
-
-//in animation loop:
-    this.updateAllMaterialUniforms();
-    three.renderer.render(three.scene, three.camera);
-*/
-
-import { SoundJS } from './util/Sound'
+export { Sounds }
 
 export class THREEShaderHelper {
 
-static defaultVertex = `
-varying vec2 vUv;
-
-void main()
-{
-
-    vUv = uv;
-
-    vec4 modelPosition = modelMatrix * vec4(position, 1.0);
-    vec4 viewPosition = viewMatrix * modelPosition;
-    vec4 projectedPosition = projectionMatrix * viewPosition;
-
-    gl_Position = projectedPosition;
-}
-`;
-
-static defaultFragment = `
-#define FFTLENGTH 256
-precision mediump float;
-uniform vec2 iResolution; //Shader display resolution
-uniform float iTime; //Shader time increment
-
-uniform float iHEG;
-uniform float iHRV;
-uniform float iHR;
-uniform float iHB;
-uniform float iFrontalAlpha1Coherence;
-uniform float iFFT[FFTLENGTH];
-uniform float iAudio[FFTLENGTH];
-void main(){
-    gl_FragColor = vec4(iAudio[20]/255. + iHEG*0.1+gl_FragCoord.x/gl_FragCoord.y,gl_FragCoord.y/gl_FragCoord.x,gl_FragCoord.y/gl_FragCoord.x - iHEG*0.1 - iAudio[120]/255.,1.0);
-}                    
-`;
-
-    constructor(canvas=undefined,sounds=undefined) {
-
-        if(!canvas) {console.error('THREEShaderHelper needs a canvas!'); return false;};
-
-        this.audio = sounds; //audio context
-        if(!sounds) {
-            if(AudioContext) {
-                this.audio = new SoundJS();
-            }
+    //the vertex in this case we'll use mostly as a base 
+    static defaultVertex = `
+        varying vec2 vUv;
+        void main() {
+            vUv = uv;
+            vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+            vec4 viewPosition = viewMatrix * modelPosition;
+            vec4 projectedPosition = projectionMatrix * viewPosition;
+            gl_Position = projectedPosition;
         }
-        this.eegchannel = 0;
-        this.heg = 0;
+    `;
 
+    //uniforms will be parsed into our manipulable system
+    static defaultFragmentSimple = `
+        #define FFTLENGTH 256
+        precision mediump float;
+        uniform vec2 iResolution; //Shader display resolution
+        uniform float iTime; //Shader time increment
+
+        uniform float iHEG;
+        uniform float iHRV;
+        uniform float iHR;
+        uniform float iHB;
+        uniform float iFrontalAlpha1Coherence;
+        uniform float iFFT[FFTLENGTH];
+        uniform float iAudio[FFTLENGTH];
+        void main(){
+            gl_FragColor = vec4(iAudio[20]/255. + iHEG*0.1+gl_FragCoord.x/gl_FragCoord.y,gl_FragCoord.y/gl_FragCoord.x,gl_FragCoord.y/gl_FragCoord.x - iHEG*0.1 - iAudio[120]/255.,1.0);
+        }              
+    `;
+
+    static defaultFragment = `
+        #define FFTSIZE 256
+        precision mediump float;
+        varying vec2 vUv;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float iHEG;
+        uniform float iHRV;
+        uniform float iHR;
+        uniform float iHB;
+        uniform float iFrontalAlpha1Coherence;
+        uniform float iFFT[FFTSIZE];
+        uniform float iAudio[FFTSIZE];
+
+        //CBS, borrowed from ShaderToy
+        //Parallax scrolling fractal galaxy.
+        //Inspired by JoshP's Simplicity shader: https://www.shadertoy.com/view/lslGWr
+
+        // http://www.fractalforums.com/new-theories-and-research/very-simple-formula-for-fractal-patterns/
+        float field(in vec3 p,float s) {
+            float strength = 7. + .03 * log(1.e-6 + fract(sin(iTime) * 4373.11));
+            float accum = s/4.;
+            float prev = 0.;
+            float tw = 0.;
+            for (int i = 0; i < 14; ++i) {
+                float mag = dot(p, p);
+                p = abs(p) / mag + vec3(-.5+(iAudio[100]*0.00001)+iHB*0.5+iHEG*0.001, -.4+(iAudio[200]*0.00001)+iHB*0.5+iHEG*0.1, -1.5);
+                float w = exp(-float(i) / (7.+iHRV*0.1+iFrontalAlpha1Coherence));
+                accum += w * exp(-strength * pow(abs(mag - prev), 2.2));
+                tw += w;
+                prev = mag;
+            }
+            return max(0., 5. * accum / tw - .7);
+        }
+
+        // Less iterations for second layer
+        float field2(in vec3 p, float s) {
+            float strength = 7. + .03 * log(1.e-6 + fract(sin(iTime) * 4373.11));
+            float accum = s/4.;
+            float prev = 0.;
+            float tw = 0.;
+            for (int i = 0; i < 14; ++i) {
+                float mag = dot(p, p);
+                p = abs(p) / mag + vec3(-.5+iAudio[80]*0.00001-iHB*0.5, -.4+iAudio[160]*0.00001 + iFrontalAlpha1Coherence*.4, -1.5);
+                float w = exp(-float(i) / 7.);
+                accum += w * exp(-strength * pow(abs(mag - prev), 2.2));
+                tw += w;
+                prev = mag;
+            }
+            return max(0., 5. * accum / tw - .7);
+        }
+
+        vec3 nrand3( vec2 co )
+        {
+            vec3 a = fract( cos( co.x*8.3e-3 + co.y )*vec3(1.3e5, 4.7e5, 2.9e5) );
+            vec3 b = fract( sin( co.x*0.3e-3 + co.y )*vec3(8.1e5, 1.0e5, 0.1e5) );
+            vec3 c = mix(a, b, 0.5);
+            return c;
+        }
+
+
+        void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
+            vec2 uv = 2. * fragCoord.xy / iResolution.xy - 1.;
+            vec2 uvs = uv * iResolution.xy / max(iResolution.x, iResolution.y);
+            vec3 p = vec3(uvs, 0) + vec3(1., -1.3, 0.);
+            p += .2 * vec3(sin(iTime / 16.), sin(iTime / 12.),  sin(iTime / 128.));
+            
+            float freqs[4];
+            
+            //Sound
+            freqs[0] = iAudio[25]/255.+iFFT[25]*.1+.25+iHEG*0.1;
+            freqs[1] = iAudio[75]/255.+iFFT[75]*.1+.1+iHR*0.001;
+            freqs[2] = iAudio[125]/255.+iFFT[125]*.1+.15+iHRV*0.01;
+            freqs[3] = iAudio[200]/255.+iFFT[200]*.1+.3;
+
+            float t = field(p,freqs[2])*2.;
+            float v = (1. - exp((abs(uv.x) - 1.) * 6.)) * (1. - exp((abs(uv.y) - 1.) * 6.));
+            
+            //Second Layer
+            vec3 p2 = vec3(5.*uvs / (4.+sin(iTime*0.11)*0.2+0.2+sin(iTime*0.15)*0.3+0.4), 1.5) + vec3(2., -1.3, -1.);
+            p2 += 0.25 * vec3(sin(iTime / 16.), sin(iTime / 12.),  sin(iTime / 128.));
+            float t2 = field2(p2,freqs[3]);
+            vec4 c2 = mix(.4, 1., v) * vec4(1.3 * t2 * t2 * t2 ,1.8  * t2 * t2 , t2* freqs[0], t2);
+            
+            
+            //Let's add some stars
+            //Thanks to http://glsl.heroku.com/e#6904.0
+            vec2 seed = p.xy * 75.;	
+            seed = floor(seed * iResolution.x);
+            vec3 rnd = nrand3( seed );
+            vec4 starcolor = vec4(pow(rnd.y,40.0));
+            
+            //Second Layer
+            vec2 seed2 = p2.xy * 50.;
+            seed2 = floor(seed2 * iResolution.x);
+            vec3 rnd2 = nrand3( seed2 );
+            starcolor += vec4(pow(rnd2.y,40.0));
+            
+            fragColor = mix(freqs[3]-.3, 1., v) * vec4(1.5*freqs[2] * t * t* t , 1.2*freqs[1] * t * t, freqs[3]*t, 1.0)+c2+starcolor;
+        }
+
+
+        void main() {
+            mainImage(gl_FragColor, vUv*iResolution);
+        }
+
+    `;
+
+    constructor(
+        canvas = undefined, 
+        sounds = undefined,
+        fragment = THREEShaderHelper.defaultFragment,
+        vertex = THREEShaderHelper.defaultVertex
+    ) {
+        if (!canvas) {
+            console.error('THREEShaderHelper needs a canvas!');
+            return false;
+        }
+
+        this.audio = sounds || new Sounds();
         this.canvas = canvas;
-        this.startTime=Date.now();
+        this.startTime = Date.now();
         this.lastTime = this.startTime;
         this.lastFrame = this.startTime;
         this.mouseclicked = 0.0;
-        this.mousexyzw = [0,0,0,0];
+        this.mousexyzw = [0, 0, 0, 0];
 
         this.addCanvasEventListeners(canvas);
 
         let date = new Date();
 
-        this.uniforms = {
-            iResolution: {value:THREE.Vector2(100,100)}, //viewport resolution
-            iTime:      {value:0}, //milliseconds elapsed from shader begin
-            iTimeDelta: {value:0},
-            iFrame:     {value:0},
-            iFrameRate: {value:0},
-            iChannelTime:   {value:[0,0,0,0]},
-            iChannelResolution:{type:'v3v', value:[new THREE.Vector3(100,100),new THREE.Vector3(100,100),new THREE.Vector3(100,100),new THREE.Vector3(100,100)]},
-            iChannel0:  {type:'t', value:new THREE.Texture(uvgrid)},
-            iChannel1:  {type:'t', value:new THREE.Texture(uvgrid)},
-            iChannel2:  {type:'t', value:new THREE.Texture(uvgrid)},
-            iChannel3:  {type:'t', value:new THREE.Texture(uvgrid)},
-            iSampleRate:    {type:'1f', value:44100},
-            iDate:      {value:new THREE.Vector4(date.getYear(),date.getMonth(),date.getDay(),date.getHours()*3600+date.getMinutes()*60+date.getSeconds())},
-            iMouse:     {value:[0,0,0,0]},  //XY mouse coordinates, z, w are last click location
-            iMouseInput: {value:false}, //Click occurred before past frame?
-            iImage:     {type:'t', value:new THREE.Texture(canvas)}, //Texture map returned from shader (to keep state)
-            iAudio:           {value:new Array(256).fill(0)},     //Audio analyser FFT, array of 256, values max at 255
-            iHRV:             {value:0},       //Heart Rate Variability (values typically 5-30)
-            iHEG:             {value:0},       //HEG change from baseline, starts at zero and can go positive or negative
-            iHR:              {value:0},       //Heart Rate in BPM
-            iHB:              {value:0},       //Is 1 when a heart beat occurs, falls off toward zero on a 1/t curve (s)
-            iBRV:             {value:0},       //Breathing rate variability, usually low, ideal is 0.
-            iFFT:             {value:new Array(256).fill(0)},  //Raw EEG FFT, array of 256. Values *should* typically be between 0 and 100 (for microvolts) but this can vary a lot so normalize or clamp values as you use them
-            iDelta:           {value:0},       //Delta bandpower average. The following bandpowers have generally decreasing amplitudes with frequency.
-            iTheta:           {value:0},       //Theta bandpower average.
-            iAlpha1:          {value:0},       //Alpha1 " "
-            iAlpha2:          {value:0},       //Alpha2 " "
-            iBeta:            {value:0},       //Beta " "
-            iGamma:           {value:0},       //Low Gamma (30-45Hz) " "
-            iThetaBeta:       {value:0},       //Theta/Beta ratio
-            iAlpha1Alpha2:    {value:0},       //Alpha1/Alpha2 ratio
-            iAlphaBeta:       {value:0},       //Alpha/Beta ratio
-            i40Hz:            {value:0},       //40Hz bandpower
-            iFrontalAlpha1Coherence: {value:0} //Alpha 1 coherence, typically between 0 and 1 and up, 0.9 and up is a strong correlation
-        }
+        const {uniformNames, uniforms, uniformSettings} = this.getUniformsFromText(fragment);
 
-        //default settings for uniforms
-        this.uniformSettings = {
-            iResolution: {default:THREE.Vector2(100,100),min:8,max:8192, step:1}, //viewport resolution
-            iTime:      {default:0,min:0,max:999999, step:1}, //milliseconds elapsed from shader begin
-            iTimeDelta: {default:0,min:0,max:2, step:0.1},
-            iFrame:     {default:0,min:0,max:999999, step:1},
-            iFrameRate: {default:0,min:0,max:144, step:1},
-            iChannelTime:   {default:[0,0,0,0],min:0,max:99999, step:1},
-            iChannelResolution:{type:'v3v',min:8,max:8192, step:1, default:[new THREE.Vector3(100,100),new THREE.Vector3(100,100),new THREE.Vector3(100,100),new THREE.Vector3(100,100)]},
-            iChannel0:  {type:'t', default:new THREE.Texture(uvgrid)},
-            iChannel1:  {type:'t', default:new THREE.Texture(uvgrid)},
-            iChannel2:        {type:'t', default:new THREE.Texture(uvgrid)},
-            iChannel3:        {type:'t', default:new THREE.Texture(uvgrid)},
-            iSampleRate:      {type:'1f', default:44100,min:8000,max:96000, step:1000},
-            iDate:            {default:new THREE.Vector4(date.getYear(),date.getMonth(),date.getDay(),date.getHours()*3600+date.getMinutes()*60+date.getSeconds())},
-            iMouse:           {default:[0,0,0,0],min:0,max:8192, step:1},  //XY mouse coordinates, z, w are last click location
-            iMouseInput:      {default:false}, //Click occurred before past frame?
-            iImage:           {type:'t', default:new THREE.Texture(canvas)}, //Texture map returned from shader (to keep state)
-            iAudio:           {default: new Array(256).fill(0), min:0,max:255, step:1},              //Audio analyser FFT, array of 256, values max at 255
-            iHRV:             {default:0, min:0, max:40,step:0.5},                           //Heart Rate Variability (values typically 5-30)
-            iHEG:             {default:0, min:-3, max:3,step:0.1},                           //HEG change from baseline, starts at zero and can go positive or negative
-            iHR:              {default:0, min:0, max:240,step:1},                            //Heart Rate in BPM
-            iHB:              {default:0, min:0, max:1},                                     //Is 1 when a heart beat occurs, falls off toward zero on a 1/t curve (s)
-            iBRV:             {default:0, min:0, max:10,step:0.5},                           //Breathing rate variability, usually low, ideal is 0.
-            iFFT:             {default:new Array(256).fill(0),min:0,max:1000},               //Raw EEG FFT, array of 256. Values *should* typically be between 0 and 100 (for microvolts) but this can vary a lot so normalize or clamp values as you use them
-            iDelta:           {default:0, min:0, max:100,step:0.5},                          //Delta bandpower average. The following bandpowers have generally decreasing amplitudes with frequency.
-            iTheta:           {default:0, min:0, max:100,step:0.5},                          //Theta bandpower average.
-            iAlpha1:          {default:0, min:0, max:100,step:0.5},                          //Alpha1 " "
-            iAlpha2:          {default:0, min:0, max:100,step:0.5},                          //Alpha2 " "
-            iBeta:            {default:0, min:0, max:100,step:0.5},                          //Beta " "
-            iGamma:           {default:0, min:0, max:100,step:0.5},                          //Low Gamma (30-45Hz) " "
-            iThetaBeta:       {default:0, min:0, max:5,step:0.1},                            //Theta/Beta ratio
-            iAlpha1Alpha2:    {default:0, min:0, max:5,step:0.1},                            //Alpha1/Alpha2 ratio
-            iAlphaBeta:       {default:0, min:0, max:5,step:0.1},                            //Alpha/Beta ratio
-            iAlphaTheta:      {default:0, min:0, max:5,step:0.1},
-            i40Hz:            {default:0, min:0, max:10,step:0.1},                           //40Hz bandpower
-            iFrontalAlpha1Coherence: {default:0, min:0, max:1.1,step:0.1}                           //Alpha 1 coherence, typically between 0 and 1 and up, 0.9 and up is a strong correlation
-        }
+        this.uniforms = uniforms;
+        this.uniformSettings = uniformSettings;
 
-        this.vertex = this.defaultVertex;
-        this.fragment = this.defaultFragment;
+        this.vertex = vertex;
+        this.fragment = fragment;
 
         this.shaderSettings = [{
             name: 'default',
             vertexShader: this.vertex,
             fragmentShader: this.fragment,
-            uniformNames:[
-                'iResolution',
-                'iTime',
-                'iHEG',
-                'iHRV',
-                'iHR',
-                'iHB',
-                'iFrontalAlpha1Coherence',
-                'iFFT',
-                'iAudio'
-            ],
-            author:'B@P'
+            uniformNames: uniformNames,
+            author: ''
         }];
 
         this.three = {};
 
-        let uniforms = this.generateMaterialUniforms();
-
-        let geometry = this.createMeshGeometry('plane',canvas.width,canvas.height);
+        let geometry = THREEShaderHelper.createMeshGeometry('plane', canvas?.width || 512, canvas?.height || 512);
         this.currentViews = ['plane'];
 
         let material = new THREE.ShaderMaterial({
-            transparent:true,
+            transparent: true,
             side: THREE.DoubleSide,
-            vertexShader: this.shaderSettings[0].vertexShader,
-            fragmentShader: this.shaderSettings[0].fragmentShader,
-            uniforms:uniforms
+            vertexShader: this.shaderSettings[0].vertexShader || THREEShaderHelper.defaultVertex,
+            fragmentShader: this.shaderSettings[0].fragmentShader || THREEShaderHelper.defaultFragment,
+            uniforms: uniforms
         });
 
-        let mesh = new THREE.Mesh({
-            geometry:geometry,
-            material:material,
-        });
+        let mesh = new THREE.Mesh(geometry, material);
 
         //default uniform and mesh
         this.materials = [material];
         this.meshes = [mesh];
 
         this.setMeshRotation(0);
-
     }
 
-    //Generate a shader mesh with the specified parameters. Returns a mesh with the ShaderMaterial applied.
-    static generateShaderGeometry(type='plane',width,height,fragment=this.defaultFragment,vertex=this.defaultVertex) {
-        let geometry = this.createMeshGeometry(type,width,height);
-        let material = this.generateShaderMaterial(fragment,vertex);
-        return new THREE.Mesh(geometry,material);
+    createDefaultUniforms(canvas=this.canvas, date = new Date()) {
+        return {
+            iResolution: { value: new THREE.Vector2(canvas?.width || 100, canvas?.height || 100) },
+            iTime: { value: 0 },
+            iTimeDelta: { value: 0 },
+            iFrame: { value: 0 },
+            iFrameRate: { value: 0 },
+            iChannelTime: { value: [0, 0, 0, 0] },
+            iChannelResolution: { type: 'v3v', value: [new THREE.Vector3(100, 100), new THREE.Vector3(100, 100), new THREE.Vector3(100, 100), new THREE.Vector3(100, 100)] },
+            iChannel0: { type: 't', value: THREEShaderHelper.makeBlankTexture() },
+            iChannel1: { type: 't', value: THREEShaderHelper.makeBlankTexture() },
+            iChannel2: { type: 't', value: THREEShaderHelper.makeBlankTexture() },
+            iChannel3: { type: 't', value: THREEShaderHelper.makeBlankTexture() },
+            iSampleRate: { type: '1f', value: 44100 },
+            iDate: { value: new THREE.Vector4(date.getYear(), date.getMonth(), date.getDay(), date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds()) },
+            iMouse: { value: [0, 0, 0, 0] },
+            iMouseInput: { value: false },
+            iImage: { type: 't', value: canvas ? new THREE.Texture(canvas) : THREEShaderHelper.makeBlankTexture() },
+            iAudio: { value: new Array(256).fill(0) },
+            iHRV: { value: 0 },
+            iHEG: { value: 0 },
+            iHR: { value: 0 },
+            iHB: { value: 0 },
+            iBRV: { value: 0 },
+            iFFT: { value: new Array(256).fill(0) },
+            iDelta: { value: 0 },
+            iTheta: { value: 0 },
+            iAlpha1: { value: 0 },
+            iAlpha2: { value: 0 },
+            iBeta: { value: 0 },
+            iGamma: { value: 0 },
+            iThetaBeta: { value: 0 },
+            iAlpha1Alpha2: { value: 0 },
+            iAlphaBeta: { value: 0 },
+            iAlphaTheta: { value: 0 },
+            i40Hz: { value: 0 },
+            iFrontalAlpha1Coherence: { value: 0 }
+        }
     }
-    
-    //Generate a shader material with the specified vertex and fragment. Returns a material.
-    static generateShaderMaterial(fragment=this.defaultFragment,vertex=this.defaultVertex) {
+
+    createDefaultUniformSettings(canvas=this.canvas, date = new Date()) {
+        return {
+            iResolution: { default: new THREE.Vector2(canvas?.width || 100, canvas?.height || 100), min: 8, max: 8192, step: 1 },
+            iTime: { default: 0, min: 0, max: 999999, step: 1 },
+            iTimeDelta: { default: 0, min: 0, max: 2, step: 0.1 },
+            iFrame: { default: 0, min: 0, max: 999999, step: 1 },
+            iFrameRate: { default: 0, min: 0, max: 144, step: 1 },
+            iChannelTime: { default: [0, 0, 0, 0], min: 0, max: 99999, step: 1 },
+            iChannelResolution: { type: 'v3v', min: 8, max: 8192, step: 1, default: [new THREE.Vector3(100, 100), new THREE.Vector3(100, 100), new THREE.Vector3(100, 100), new THREE.Vector3(100, 100)] },
+            iChannel0: { type: 't', default: THREEShaderHelper.makeBlankTexture() },
+            iChannel1: { type: 't', default: THREEShaderHelper.makeBlankTexture() },
+            iChannel2: { type: 't', default: THREEShaderHelper.makeBlankTexture() },
+            iChannel3: { type: 't', default: THREEShaderHelper.makeBlankTexture() },
+            iSampleRate: { type: '1f', default: 44100, min: 8000, max: 96000, step: 1000 },
+            iDate: { default: new THREE.Vector4(date.getYear(), date.getMonth(), date.getDay(), date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds()) },
+            iMouse: { default: [0, 0, 0, 0], min: 0, max: 8192, step: 1 },
+            iMouseInput: { default: false },
+            iImage: { type: 't', default: new THREE.Texture(canvas) },
+            iAudio: { default: new Array(256).fill(0), min: 0, max: 255, step: 1 },
+            iHRV: { default: 0, min: 0, max: 40, step: 0.5 },
+            iHEG: { default: 0, min: -3, max: 3, step: 0.1 },
+            iHR: { default: 0, min: 0, max: 240, step: 1 },
+            iHB: { default: 0, min: 0, max: 1 },
+            iBRV: { default: 0, min: 0, max: 10, step: 0.5 },
+            iFFT: { default: new Array(256).fill(0), min: 0, max: 1000 },
+            iDelta: { default: 0, min: 0, max: 100, step: 0.5 },
+            iTheta: { default: 0, min: 0, max: 100, step: 0.5 },
+            iAlpha1: { default: 0, min: 0, max: 100, step: 0.5 },
+            iAlpha2: { default: 0, min: 0, max: 100, step: 0.5 },
+            iBeta: { default: 0, min: 0, max: 100, step: 0.5 },
+            iGamma: { default: 0, min: 0, max: 100, step: 0.5 },
+            iThetaBeta: { default: 0, min: 0, max: 5, step: 0.1 },
+            iAlpha1Alpha2: { default: 0, min: 0, max: 5, step: 0.1 },
+            iAlphaBeta: { default: 0, min: 0, max: 5, step: 0.1 },
+            iAlphaTheta: { default: 0, min: 0, max: 5, step: 0.1 },
+            i40Hz: { default: 0, min: 0, max: 10, step: 0.1 },
+            iFrontalAlpha1Coherence: { default: 0, min: 0, max: 1.1, step: 0.1 }
+        }
+    }
+
+    //uniformSettings={[key:string]:{default?:number, min?:number, max?: number, step?:number, value?:any, callback?:()=>any}}
+    updateUniformSettings(uniformSettings) {
+        for(const key in uniformSettings) {
+            if(this.uniformSettings[key]) Object.assign(this.uniformSettings[key], uniformSettings[key]);
+            else this.uniformSettings[key] = uniformSettings[key];
+        }
+    }
+
+    static makeBlankTexture = (w=512,h=512) => {
+        const blankData = new Uint8Array(4 * w * h); // 512x512 texture with RGBA channels
+        const blankTexture = new THREE.DataTexture(blankData, w, h, THREE.RGBAFormat);
+        blankTexture.needsUpdate = true;
+        return blankTexture;
+    }
+
+    // Generate a shader mesh with the specified parameters. Returns a mesh with the ShaderMaterial applied.
+    static generateShaderGeometry(type = 'plane', width, height, fragment = THREEShaderHelper.defaultFragment, vertex = THREEShaderHelper.defaultVertex) {
+        let geometry = THREEShaderHelper.createMeshGeometry(type, width, height);
+        let material = THREEShaderHelper.generateShaderMaterial(fragment, vertex);
+        return new THREE.Mesh(geometry, material);
+    }
+
+    // Generate a shader material with the specified vertex and fragment. Returns a material.
+    static generateShaderMaterial(fragment = THREEShaderHelper.defaultFragment, vertex = THREEShaderHelper.defaultVertex) {
         return new THREE.ShaderMaterial({
             vertexShader: vertex,
             fragmentShader: fragment,
@@ -225,258 +319,234 @@ void main(){
         });
     }
 
-    //Generate a shader mesh with the specified parameters: supports sphere, plane, circle, halfsphere, vrscreen
-    static createMeshGeometry(type='plane',width,height){
-        if (type === 'sphere'){
-            return new THREE.SphereGeometry(Math.min(width, height), 50, 50).rotateY(-Math.PI*0.5);
+    // Generate a shader mesh with the specified parameters: supports sphere, plane, circle, halfsphere, vrscreen
+    static createMeshGeometry(type = 'plane', width=512, height=512) {
+        if (type === 'sphere') {
+            return new THREE.SphereGeometry(Math.min(width, height), 50, 50).rotateY(-Math.PI * 0.5);
         } else if (type === 'plane') {
-            let plane = new THREE.PlaneGeometry(width, height, 1, 1);
-            let angle = (2 * Math.PI * 1) - Math.PI/2;
-            plane.position.set(radius*(Math.cos(angle)),0,radius*(Math.sin(angle)));
-            plane.rotation.set(0,-angle - Math.PI/2,0);
-            return plane;
-        } else if (type === 'circle') {      
-            return new THREE.CircleGeometry( Math.min(width, height), 32 );
-        } else if (type === 'halfsphere') {      
-            return new THREE.SphereGeometry(Math.min(width, height), 50, 50, -2*Math.PI, Math.PI, 0, Math.PI).translate(0,0,-3);
+            return new THREE.PlaneGeometry(width, height, 1, 1);
+        } else if (type === 'circle') {
+            return new THREE.CircleGeometry(Math.min(width, height), 32);
+        } else if (type === 'halfsphere') {
+            return new THREE.SphereGeometry(Math.min(width, height), 50, 50, -2 * Math.PI, Math.PI, 0, Math.PI).translate(0, 0, -3);
         } else if (type === 'vrscreen') {
-            return new THREE.SphereGeometry(Math.min(width, height), 50, 50, -2*Math.PI-1, Math.PI+1, 0.5, Math.PI-1).rotateY(0.5).translate(0,0,-3);
+            return new THREE.SphereGeometry(Math.min(width, height), 50, 50, -2 * Math.PI - 1, Math.PI + 1, 0.5, Math.PI - 1).rotateY(0.5).translate(0, 0, -3);
         }
     }
 
-    //averages values when downsampling.
-    static downsample(array, fitCount, scalar=1) {
-
-        if(array.length > fitCount) {        
+    // Averages values when downsampling.
+    static downsample(array, fitCount, scalar = 1) {
+        if (array.length > fitCount) {
             let output = new Array(fitCount);
-            let incr = array.length/fitCount;
-            let lastIdx = array.length-1;
+            let incr = array.length / fitCount;
+            let lastIdx = array.length - 1;
             let last = 0;
             let counter = 0;
-            for(let i = incr; i < array.length; i+=incr) {
+            for (let i = incr; i < array.length; i += incr) {
                 let rounded = Math.round(i);
-                if(rounded > lastIdx) rounded = lastIdx;
-                for(let j = last; j < rounded; j++) {
+                if (rounded > lastIdx) rounded = lastIdx;
+                for (let j = last; j < rounded; j++) {
                     output[counter] += array[j];
                 }
-                output[counter] /= (rounded-last)*scalar;
+                output[counter] /= (rounded - last) * scalar;
                 counter++;
                 last = rounded;
             }
             return output;
-        } else return array; //can't downsample a smaller array
+        } else return array; // can't downsample a smaller array
     }
 
-    static upsample(data, fitCount, scalar=1) {
+    static upsample(data, fitCount, scalar = 1) {
+        var linearInterpolate = function (before, after, atPoint) {
+            return (before + (after - before) * atPoint) * scalar;
+        };
 
-		var linearInterpolate = function (before, after, atPoint) {
-			return (before + (after - before) * atPoint)*scalar;
-		};
-
-		var newData = new Array();
-		var springFactor = new Number((data.length - 1) / (fitCount - 1));
-		newData[0] = data[0]; // for new allocation
-		for ( var i = 1; i < fitCount - 1; i++) {
-			var tmp = i * springFactor;
-			var before = new Number(Math.floor(tmp)).toFixed();
-			var after = new Number(Math.ceil(tmp)).toFixed();
-			var atPoint = tmp - before;
-			newData[i] = linearInterpolate(data[before], data[after], atPoint);
-		}
-		newData[fitCount - 1] = data[data.length - 1]; // for new allocation
-		return newData;
-	}
+        var newData = new Array();
+        var springFactor = (data.length - 1) / (fitCount - 1);
+        newData[0] = data[0]; // for new allocation
+        for (var i = 1; i < fitCount - 1; i++) {
+            var tmp = i * springFactor;
+            var before = Math.floor(tmp);
+            var after = Math.ceil(tmp);
+            var atPoint = tmp - before;
+            newData[i] = linearInterpolate(data[before], data[after], atPoint);
+        }
+        newData[fitCount - 1] = data[data.length - 1]; // for new allocation
+        return newData;
+    }
 
     deinit() {
         this.removeCanvasEventListeners();
     }
 
-    onmousemove=(ev)=> {
+    onmousemove = (ev) => {
         this.mousexyzw[0] = ev.offsetX;
         this.mousexyzw[1] = ev.offsetY;
-    }
+    };
 
     mousedown = (ev) => {
         this.mouseclicked = 1.0;
         this.mousexyzw[2] = ev.offsetX;
-        this.mousexyzw[3] = ev.offsetY; 
-    }
+        this.mousexyzw[3] = ev.offsetY;
+    };
 
-    addCanvasEventListeners(canvas=this.canvas) { 
+    addCanvasEventListeners(canvas = this.canvas) {
         canvas.addEventListener('mousemove', this.onmousemove);
         canvas.addEventListener('mousedown', this.mousedown);
     }
 
-    removeCanvasEventListeners(canvas=this.canvas) { 
+    removeCanvasEventListeners(canvas = this.canvas) {
         canvas.removeEventListener('mousemove', this.onmousemove);
         canvas.removeEventListener('mousedown', this.mousedown);
     }
 
-    
-    //lets you add uniform settings e.g. textures, floats, vertex lists (for meshes, type=v3v)
-    addUniformSetting(name='newUniform',defaultValue=0,type=undefined,callback=()=>{return 0;},min=0,max=1,step=0.1) { //min,max,step are for slider controls (only applies to floats)
-        this.uniformSettings[name] = {default:defaultValue,min:min,max:max,step:step,callback:callback};
-        this.uniforms[name] = {value:defaultValue};
-        if(type) { this.uniforms[name].type = type; }
+    // Lets you add uniform settings, e.g., textures, floats, vertex lists (for meshes, type=v3v)
+    addUniformSetting(name = 'newUniform', defaultValue = 0, type = undefined, callback = () => { return 0; }, min = 0, max = 1, step = 0.1) {
+        this.uniformSettings[name] = { default: defaultValue, min: min, max: max, step: step, callback: callback };
+        this.uniforms[name] = { value: defaultValue };
+        if (type) {
+            this.uniforms[name].type = type;
+        }
+
     }
 
-    //create a whole new shader mesh with specified settings
+    // Create a whole new shader mesh with specified settings
     addNewShaderMesh(
-        fragment=this.defaultFragment,
-        vertex=this.defaultVertex,
-        type='plane',
-        width=this.canvas.width, 
-        height=this.canvas.height,
-        uniformNames=[],
-        name='',
-        author=''
+        fragment = this.defaultFragment,
+        vertex = this.defaultVertex,
+        type = 'plane',
+        width = this.canvas.width,
+        height = this.canvas.height,
+        name = '',
+        author = ''
     ) {
         let geometry;
-        if(typeof type === 'string') geometry = this.createMeshGeometry(type,width,height);
-        else geometry = type; //can pass a str8 geometry object
-        let material = this.generateShaderMaterial(fragment,vertex);
-        let mesh = new THREE.Mesh(geometry,material);
-        
+        if (typeof type === 'string') geometry = THREEShaderHelper.createMeshGeometry(type, width, height);
+        else geometry = type; // can pass a str8 geometry object
+        let material = THREEShaderHelper.generateShaderMaterial(fragment, vertex);
+        let mesh = new THREE.Mesh(geometry, material);
+
+
+        const {uniforms, uniformNames, uniformSettings} = this.getUniformsFromText(fragment);
+
+        this.uniforms = uniforms; this.uniformSettings = uniformSettings;
 
         this.shaderSettings.push({
-            name:name,
+            name: name,
             vertexShader: vertex,
             fragmentShader: fragment,
-            uniformNames:uniformNames,
-            author:author
+            uniformNames: uniformNames,
+            author: author
         });
 
-        let uniforms = this.generateMaterialUniforms(this.shaderSettings[this.shaderSettings.length-1]);
+        material.uniforms = uniforms;
 
-        materal.uniforms = uniforms;
-
-        this.updateMaterialUniforms(material,uniformNames,type);
+        this.updateMaterialUniforms(material, uniformNames, type);
 
         this.currentViews.push(type);
         this.materials.push(material);
         this.meshes.push(mesh);
 
+        return mesh;
     }
 
-    //sets the uniforms to be updated
-    setUniforms(uniforms={}) {
-        for(const prop in uniforms) {
-            if(this.uniforms[prop].value)
+    // Sets the uniforms to be updated
+    setUniforms(uniforms = {}) {
+        for (const prop in uniforms) {
+            if (this.uniforms[prop].value)
                 this.uniforms[prop].value = uniforms[prop];
-            else this.uniforms[prop].value = {value:uniforms[prop]};
+            else this.uniforms[prop].value = { value: uniforms[prop] };
         }
+
+        return this.uniforms;
     }
 
-    //only applies to the main mesh geometry
-    setMeshGeometry(matidx=0,type='plane') {
-        if(this.meshes[matidx]) {
+    // Only applies to the main mesh geometry
+    setMeshGeometry(matidx = 0, type = 'plane') {
+        if (this.meshes[matidx]) {
             this.currentViews[matidx] = type;
-            this.meshes[matidx].geometry = this.createMeshGeometry(type);
-            this.meshes[matidx].rotation.set(0,Math.PI,0);
+            this.meshes[matidx].geometry = THREEShaderHelper.createMeshGeometry(type, this.canvas.width, this.canvas.height);
+            this.meshes[matidx].rotation.set(0, Math.PI, 0);
         }
+
+        return this.meshes[matidx];
     }
 
-    setMeshRotation(matidx=0,anglex=0,angley=Math.PI,anglez=0){
-        if(this.meshes[matidx])
-            this.meshes[matidx].rotation.set(anglex,angley,anglez);
+    setMeshRotation(matidx = 0, anglex = 0, angley = Math.PI, anglez = 0) {
+        if (this.meshes[matidx])
+            this.meshes[matidx].rotation.set(anglex, angley, anglez);
+
+        return this.meshes[matidx];
     }
 
-    //this should allow you to set custom textures
-    setChannelTexture(channelNum=0,imageOrVideo=uvgrid,material=this.materials[0]) {
-        if(!this.uniforms['iChannel'+channelNum]) { //if adding new textures, the glsl needs to be able to accommodate it
-            let l = this.uniforms['iChannelResolution'].value.length-1;
-            if(this.uniforms['iChannelResolution'].value.length-1 < channelNum) {
-                this.uniforms['iChannelResolution'].value.push(...new Array(channelNum-l).fill(0));
-                this.uniforms['iChannelTime'].value.push(...new Array(channelNum-l).fill(Date.now()-this.startTime));
+    // This should allow you to set custom textures
+    setChannelTexture(channelNum = 0, imageOrVideo = new THREE.DataTexture(), material = this.materials[0]) {
+        if (!this.uniforms['iChannel' + channelNum]) { // if adding new textures, the GLSL needs to be able to accommodate it
+            let l = this.uniforms['iChannelResolution'].value.length - 1;
+            if (this.uniforms['iChannelResolution'].value.length - 1 < channelNum) {
+                this.uniforms['iChannelResolution'].value.push(...new Array(channelNum - l).fill(0));
+                this.uniforms['iChannelTime'].value.push(...new Array(channelNum - l).fill(Date.now() - this.startTime));
             }
         }
-        this.uniforms['iChannel'+channelNum] = {type:'t', value:new THREE.Texture(imageOrVideo)};
+        this.uniforms['iChannel' + channelNum] = { type: 't', value: new THREE.Texture(imageOrVideo) };
         this.uniforms['iChannelResolution'].value[channelNum] = new THREE.Vector2(imageOrVideo.width, imageOrVideo.height);
-        if(material) {
-            material.uniforms['iChannel'+channelNum] = this.uniforms['iChannel'+channelNum];
+        if (material) {
+            material.uniforms['iChannel' + channelNum] = this.uniforms['iChannel' + channelNum];
             material.uniforms['iChannelResolution'] = this.uniforms['iChannelResolution'];
             material.uniforms['iChannelTime'] = this.uniforms['iChannelTime'];
         }
     }
 
-    generateMaterialUniforms(shaderSettings=this.shaderSettings[0]) {
-        let uniforms = {};
-        shaderSettings.uniformNames.forEach((u)=>{
-            let pass = false;
-            for(const prop in this.uniforms) {
-                if (prop === 'iChannelResolution') {
-                    uniforms[u] = this.uniforms[u];
-                } else if (prop.includes('iChannel')) {
-                    uniforms[u] = this.uniforms[u];
-                    if(!uniforms['iChannelResolution']) {
-                        uniforms['iChannelResolution'] = this.uniforms['iChannelResolution'];
-                    }
-                    let ch = parseInt(u[8]);
-                    uniforms['iChannelResolution'].value[ch] = new THREE.Vector3(
-                        uniforms[u].value.image.width,
-                        uniforms[u].value.image.height
-                    );
-                } else if (prop.includes('iImage')){
-                   uniforms[u] = {type:'t',value:new THREE.Texture(canvas)};
-                }
-                else if(u === prop) {
-                    uniforms[u]=this.uniforms[u];
-                    pass = true;
-                    break;
-                }
-            }
-        });
-        return uniforms;
-    }
-
-    resetMaterialUniforms(material=this.materials[0],uniformNames=this.shaderSettings[0].uniformNames) {
-        for(let name in uniformNames) {
-            if(this.uniformSettings[name]) {
+    //can provide the list of names
+    resetMaterialUniforms(material = this.materials[0], uniformNames = this.shaderSettings[0].uniformNames) {
+        for (let name in uniformNames) {
+            if (this.uniformSettings[name]) {
                 this.uniforms[name].value = this.uniformSettings[name].default;
                 material.uniforms[name] = this.uniforms[name];
             }
         }
     }
 
-
-
-    //Updates dynamic uniforms for selected material, uniforms. Static uniforms (textures, meshes, etc) are set once.
-    updateMaterialUniforms(material=this.materials[0],uniformNames=this.shaderSettings[0].uniformNames,meshType=this.currentViews[matidx]) {
+    // Updates dynamic uniforms for selected material, uniforms. Static uniforms (textures, meshes, etc) are set once.
+    updateMaterialUniforms(
+        material = this.materials[0], 
+        uniformNames = this.shaderSettings[0].uniformNames, 
+        meshType = this.currentViews[0]
+    ) {
         let time = Date.now();
-        
-        for(let name in uniformNames) {
-        
-            if (!material.uniforms[name]) { 
-                material.uniforms[name] = {value:0};
+        for (let name of uniformNames) {
+            if (!material.uniforms[name]) {
+                material.uniforms[name] = { value: 0 };
             }
 
-            if(name === 'iResolution') {
-                if(meshType === 'halfsphere' || meshType === 'circle') {
-                    material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width,this.canvas.height);
+            //deal with special parameters then move onto custom
+            if (name === 'iResolution') {
+                if (meshType === 'halfsphere' || meshType === 'circle') {
+                    material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height);
                 } else if (meshType !== 'plane') {
-                    material.uniforms.iResolution.value = new THREE.Vector2(Math.max(this.canvas.width,this.canvas.height), this.canvas.width); //fix for messed up aspect ratio on vrscreen and sphere
+                    material.uniforms.iResolution.value = new THREE.Vector2(Math.max(this.canvas.width, this.canvas.height), this.canvas.width); // fix for messed up aspect ratio on vrscreen and sphere
                 } else {
-                    material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height); //leave plane aspect alone
+                    material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height); // leave plane aspect alone
                 }
             } else if (name === 'iTime') {
-                material.uniforms.iTime.value = (time-this.startTime)*0.001;
+                material.uniforms.iTime.value = (time - this.startTime) * 0.001;
             } else if (name === 'iTimeDelta') {
-                let t0 = time-this.lastTime;
-                material.uniforms.iTimeDelta.value = (t0)*0.001;
-                if(t0 > 5) {
+                let t0 = time - this.lastTime;
+                material.uniforms.iTimeDelta.value = (t0) * 0.001;
+                if (t0 > 5) {
                     this.lastTime = time;
                 }
             } else if (name === 'iFrame') {
                 material.uniforms.iFrame.value++;
             } else if (name === 'iFrameRate') {
                 let t0 = time - this.lastFrame;
-                material.uniforms.iFrameRate.value = 1/(t0*0.001);
-                if(t0 > 5) { 
+                material.uniforms.iFrameRate.value = 1 / (t0 * 0.001);
+                if (t0 > 5) {
                     this.lastFrame = time;
                 }
             } else if (name === 'iChannelTime') {
-                let t = (time-this.startTime)*0.001;
-                material.uniforms.iChannelTime.value.forEach((t,i)=>{
+                let t = (time - this.startTime) * 0.001;
+                material.uniforms.iChannelTime.value.forEach((t, i) => {
                     material.uniforms.iChannelTime.value[i] = t;
                 });
             } else if (name === 'iDate') {
@@ -484,127 +554,111 @@ void main(){
                 material.uniforms.iDate.value.x = date.getYear();
                 material.uniforms.iDate.value.y = date.getMonth();
                 material.uniforms.iDate.value.z = date.getDay();
-                material.uniforms.iDate.value.w = date.getHours()*3600 + date.getMinutes()*60 + date.getSeconds();
+                material.uniforms.iDate.value.w = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
             } else if (name === 'iMouse') {
                 material.uniforms.iMouse.value = new THREE.Vector4(...this.mousexyzw);
             } else if (name === 'iMouseInput') {
                 material.uniforms.iMouseInput.value = this.mouseclicked;
             } else if (name === 'iImage') {
-                material.uniforms.iImage.value = new THREE.Texture(canvas);
+                material.uniforms.iImage.value = new THREE.Texture(this.canvas);
             } else if (name === 'iAudio') {
-                if(this.audio) { //using Sound.js
-                    material.uniforms.iAudio.value = this.downsample(Array.from(this.audio.getAnalyzerData()),256);
+                if (this.audio && this.audio.playing) { // using Sound.js
+                    material.uniforms.iAudio.value = THREEShaderHelper.downsample(Array.from(this.audio.getAnalyzerData()), 256);
                 } else {
                     material.uniforms.iAudio.value = this.uniforms.iAudio.value;
                 }
-            } else if (this.uniformSettings[name]) { //arbitrary uniforms
-                if(this.uniformSettings[name].callback) {
+            } else if (this.uniformSettings[name]) { // arbitrary uniforms
+                if (this.uniformSettings[name].callback) {
                     material.uniforms[name].value = this.uniformSettings[name].callback();
+                } else if ('value' in this.uniformSettings[name]) {
+                    material.uniforms[name].value = this.uniformSettings[name].value;
+                    delete this.uniformSettings[name].value; //you could update this value to trigger it to set on frame instead
                 }
             }
-            
         }
-
     }
 
-    //update all of the uniforms simultaneously to save time
+    // Update all of the uniforms simultaneously to save time
     updateAllMaterialUniforms() {
+        let time = Date.now();
         Object.keys(this.uniforms).forEach((name) => {
             let materialsfiltered = [];
-            this.shaderSettings.filter((setting,j) => {
-                if(setting.uniformNames.indexOf(name)>-1) {
+            this.shaderSettings.filter((setting, j) => {
+                if (setting.uniformNames.indexOf(name) > -1) {
                     materialsfiltered.push(this.materials[j]);
                     return true;
                 }
-            });     
-            if(materialsfiltered.length > 0) {
+            });
+            if (materialsfiltered.length > 0) {
                 let value;
-                if(name === 'iResolution') {
-                    if(meshType === 'halfsphere' || meshType === 'circle') {
-                        value = new THREE.Vector2(this.canvas.width,this.canvas.height);
-                    } else if (meshType !== 'plane') {
-                        value = new THREE.Vector2(Math.max(this.canvas.width,this.canvas.height), this.canvas.width); //fix for messed up aspect ratio on vrscreen and sphere
+                if (name === 'iResolution') {
+                    if (this.currentViews[0] === 'halfsphere' || this.currentViews[0] === 'circle') {
+                        value = new THREE.Vector2(this.canvas.width, this.canvas.height);
+                    } else if (this.currentViews[0] !== 'plane') {
+                        value = new THREE.Vector2(Math.max(this.canvas.width, this.canvas.height), this.canvas.width);
                     } else {
-                        value = new THREE.Vector2(this.canvas.width, this.canvas.height); //leave plane aspect alone
+                        value = new THREE.Vector2(this.canvas.width, this.canvas.height);
                     }
                 } else if (name === 'iTime') {
-                    value = (time-this.startTime)*0.001;
+                    value = (time - this.startTime) * 0.001;
                 } else if (name === 'iTimeDelta') {
-                    value = (time-this.lastTime)*0.001;
+                    value = (time - this.lastTime) * 0.001;
                     this.lastTime = time;
                 } else if (name === 'iFrame') {
                     this.uniforms.iFrame.value++;
                     value = this.uniforms.iFrame.value;
                 } else if (name === 'iFrameRate') {
-                    value = 1/((time - this.lastFrame)*0.001);
+                    value = 1 / ((time - this.lastFrame) * 0.001);
                     this.lastFrame = time;
                 } else if (name === 'iChannelTime') {
-                    let t = (time-this.startTime)*0.001;
-                    this.uniforms.iChannelTime.value.forEach((t,i)=>{
+                    let t = (time - this.startTime) * 0.001;
+                    this.uniforms.iChannelTime.value.forEach((t, i) => {
                         this.uniforms.iChannelTime.value[i] = t;
                     });
                     value = this.uniforms.iChannelTime.value;
                 } else if (name === 'iDate') {
                     let date = new Date();
-                    value = new THREE.Vector4(date.getYear(),date.getMonth(),date.getDay(),date.getHours()*60*60+date.getMinutes()*60+date.getSeconds());
+                    value = new THREE.Vector4(date.getYear(), date.getMonth(), date.getDay(), date.getHours() * 60 * 60 + date.getMinutes() * 60 + date.getSeconds());
                 } else if (name === 'iMouse') {
                     value = new THREE.Vector4(...this.mousexyzw);
                 } else if (name === 'iMouseInput') {
                     value = this.mouseclicked;
                 } else if (name === 'iImage') {
-                    value = new THREE.Texture(canvas);
+                    value = new THREE.Texture(this.canvas);
                 } else if (name === 'iAudio') {
-                    if(this.audio) {//using Sound.js
-                        value = Array.from(this.audio.getAnalyzerData().slice(0,256));
+                    if (this.audio) { // using Sound.js
+                        value = Array.from(this.audio.getAnalyzerData().slice(0, 256));
                     } else {
-                        material.uniforms.iAudio.value = this.uniforms.iAudio.value;
+                        value = this.uniforms.iAudio.value;
                     }
-                } else if (this.uniformSettings[name]) { //arbitrary uniforms
-                    if(this.uniformSettings[name].callback) {
+                } else if (this.uniformSettings[name]) { // arbitrary uniforms
+                    if (this.uniformSettings[name].callback) {
                         value = this.uniformSettings[name].callback();
                     } else {
                         value = this.uniforms[name].value;
                     }
-                } 
-            
+                }
+
                 materialsfiltered.forEach(material => {
-                    if (!material.uniforms[name]) { 
-                        material.uniforms[name] = {value:value};
+                    if (!material.uniforms[name]) {
+                        material.uniforms[name] = { value: value };
                     } else material.uniforms[name].value = value;
                 });
             }
         });
     }
 
-    //applies to main shader
-    setShader = (matidx=0, name='',vertexShader=``,fragmentShader=``,uniformNames=[],author='') => {
+    // Applies to main shader
+    setShader(matidx = 0, name = '',fragmentShader = ``,  vertexShader = THREEShaderHelper.defaultVertex, author = '') {
+        const {uniforms, uniformNames, uniformSettings} = this.getUniformsFromText(fragmentShader);
+        this.uniforms = uniforms; this.uniformSettings = uniformSettings;
+
         this.shaderSettings[matidx].name = name;
         this.shaderSettings[matidx].vertexShader = vertexShader;
         this.shaderSettings[matidx].fragmentShader = fragmentShader;
         this.shaderSettings[matidx].uniformNames = uniformNames;
         this.shaderSettings[matidx].author = author;
 
-        let uniforms = this.generateMaterialUniforms(this.shaderSettings[matidx]); //get base/invariant uniforms
-
-        this.materials[matidx] = new THREE.ShaderMaterial({
-            vertexShader: this.shaderSettings.vertexShader,
-            fragmentShader: this.shaderSettings.fragmentShader,
-            side: THREE.DoubleSide,
-            transparent: true,
-            uniforms:uniforms
-        });
-
-        this.updateMaterialUniforms(this.materials[matidx],uniformNames,this.currentViews[matidx]); //get latest data
-        
-        if(this.meshes[matidx]){
-            this.meshes[matidx].material.dispose();
-            this.meshes[matidx].material = this.materials[matidx];
-        }
-    }
-
-    swapShader = (matidx=0,onchange=()=>{this.startTime=Date.now()}) => {
-
-        let uniforms = this.generateMaterialUniforms(this.shaderSettings[matidx]); //get base/invariant uniforms
 
         this.materials[matidx] = new THREE.ShaderMaterial({
             vertexShader: this.shaderSettings[matidx].vertexShader,
@@ -614,9 +668,29 @@ void main(){
             uniforms: uniforms
         });
 
-        this.updateMaterialUniforms(); //get latest data
+        this.updateMaterialUniforms(this.materials[matidx], uniformNames, this.currentViews[matidx]);
 
-        if(this.meshes[matidx]){
+        if (this.meshes[matidx]) {
+            this.meshes[matidx].material.dispose();
+            this.meshes[matidx].material = this.materials[matidx];
+        }
+    }
+
+    swapShader(matidx = 0, onchange = () => { this.startTime = Date.now(); }) {
+        const {uniforms, uniformNames, uniformSettings} = this.getUniformsFromText(fragmentShader);
+        this.uniforms = uniforms; this.uniformSettings = uniformSettings;
+
+        this.materials[matidx] = new THREE.ShaderMaterial({
+            vertexShader: this.shaderSettings[matidx].vertexShader,
+            fragmentShader: this.shaderSettings[matidx].fragmentShader,
+            side: THREE.DoubleSide,
+            transparent: true,
+            uniforms: uniforms
+        });
+
+        this.updateMaterialUniforms(this.materials[matidx], uniformNames);
+
+        if (this.meshes[matidx]) {
             this.meshes[matidx].material.dispose();
             this.meshes[matidx].material = this.materials[matidx];
         }
@@ -624,164 +698,299 @@ void main(){
         onchange();
     }
 
-    setShaderFromText = (
-        matidx=0,
-        fragmentShaderText=this.defaultFragment,
-        vertexShaderText=this.defaultVertex,
-        name='',
-        author='',
-        onchange=()=>{this.startTime=Date.now()}
-        ) => {
-
+    setShaderFromText(
+        matidx = 0,
+        fragmentShaderText = THREEShaderHelper.defaultFragment,
+        vertexShaderText = THREEShaderHelper.defaultVertex,
+        onchange = () => { this.startTime = Date.now(); },
+        name = '',
+        author = ''
+    ) {
         this.fragment = fragmentShaderText;
         this.vertex = vertexShaderText;
 
         // Dynamically Extract Uniforms
-        let regex = new RegExp('uniform (.*) (.*);', 'g')
-        let result = [...fragmentShader.matchAll(regex)]
-        let alluniforms = [];
-        result.forEach(a => {
-            if(a[1].includes('sampler')){
-                this.uniforms[u] = {default:new Texture(uvmap),type:'t'};
-                this.uniformSettings[u] = {default:new Texture(uvmap),type:'t'};
-            } else if (a[1].includes('float')) {
-                if(!this.uniforms[u]) {
-                    this.uniforms[u] = {value:0};
-                    this.uniformSettings[u] = {default:0,min:0,max:100,step:1};
-                }
-            }
-            alluniforms.push(a[2].replace(/(\[.+\])/g, ''));
-        });
+        const {uniformNames, uniforms, uniformSettings} = this.getUniformsFromText()
+        this.uniforms = uniforms; 
+        this.uniformSettings = uniformSettings;
 
         this.shaderSettings[matidx].name = name;
         this.shaderSettings[matidx].vertexShader = vertexShaderText;
         this.shaderSettings[matidx].fragmentShader = fragmentShaderText;
         this.shaderSettings[matidx].author = author;
-        this.shaderSettings[matidx].uniformNames = alluniforms;
+        this.shaderSettings[matidx].uniformNames = uniformNames;
 
-        this.swapShader(matidx,onchange);
-
+        this.swapShader(matidx, onchange);
     }
 
-    generateGUI(uniformNames=this.uniformSettings.uniformNames,material=this.material){
-        
-        if(!this.gui) return undefined;
-        
-        let updateUniforms = (key,value) => {
-            if (this.material.uniforms[key] == null) material.uniforms[key] = {};
-            material.uniforms[key].value = value;
+    getUniformsFromText(shaderText='', canvas = this.canvas, date = new Date()) {
+        // Define the default uniforms and their corresponding settings
+        const predefinedUniforms = this.createDefaultUniforms(canvas, date);
+        const predefinedUniformSettings = this.createDefaultUniformSettings(canvas, date);
+    
+        // Extract #define directives for array sizes
+        let defineRegex = new RegExp('#define\\s+(\\w+)\\s+(\\d+)', 'g');
+        let defines = {};
+        let defineMatch;
+        while ((defineMatch = defineRegex.exec(shaderText)) !== null) {
+            defines[defineMatch[1]] = parseInt(defineMatch[2]);
         }
+    
+        // Dynamically Extract Uniforms
+        let uniformRegex = new RegExp('uniform\\s+([\\w]+)\\s+([\\w]+)(\\[\\w+\\])?;', 'g');
+        let result = [...shaderText.matchAll(uniformRegex)];
+        let uniforms = {};
+        let uniformSettings = {};
+        let uniformNames = [];
+    
+        result.forEach(a => {
+            const u = a[2]; // Uniform name
+            const arraySizeMatch = a[3]; // Matches array size, e.g., [256] or [ARRAYSIZE]
+    
+            // Determine the array size if applicable
+            let arraySize = 1;
+            if (arraySizeMatch) {
+                let sizeStr = arraySizeMatch.replace(/[\[\]]/g, '');
+                if (defines[sizeStr] !== undefined) {
+                    arraySize = defines[sizeStr];
+                } else {
+                    arraySize = parseInt(sizeStr) || 1;
+                }
+            }
+    
+            // Check if this uniform matches a predefined uniform
+            if (predefinedUniforms.hasOwnProperty(u)) {
+                uniforms[u] = predefinedUniforms[u];
+                uniformSettings[u] = predefinedUniformSettings[u];
+            } else {
+                // Handle different GLSL types
+                if (a[1].includes('sampler')) {
+                    uniforms[u] = { value: THREEShaderHelper.makeBlankTexture(), type: 't' };
+                    uniformSettings[u] = { default: THREEShaderHelper.makeBlankTexture(), type: 't' };
+                } else if (a[1].includes('float')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(0) : 0, type: '1f' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(0) : 0, min: 0, max: 100, step: 1, type: '1f' };
+                } else if (a[1].includes('vec2')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(new THREE.Vector2(0, 0)) : new THREE.Vector2(0, 0), type: 'v2' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(new THREE.Vector2(0, 0)) : new THREE.Vector2(0, 0), min: 0, max: 1000, step: 1, type: 'v2' };
+                } else if (a[1].includes('vec3')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(new THREE.Vector3(0, 0, 0)) : new THREE.Vector3(0, 0, 0), type: 'v3' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(new THREE.Vector3(0, 0, 0)) : new THREE.Vector3(0, 0, 0), min: 0, max: 1000, step: 1, type: 'v3' };
+                } else if (a[1].includes('vec4')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(new THREE.Vector4(0, 0, 0, 0)) : new THREE.Vector4(0, 0, 0, 0), type: 'v4' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(new THREE.Vector4(0, 0, 0, 0)) : new THREE.Vector4(0, 0, 0, 0), min: 0, max: 1000, step: 1, type: 'v4' };
+                } else if (a[1].includes('int')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(0) : 0, type: '1i' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(0) : 0, min: 0, max: 100, step: 1, type: '1i' };
+                } else if (a[1].includes('bool')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(false) : false, type: 'bool' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(false) : false, type: 'bool' };
+                } else if (a[1].includes('mat3')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(new THREE.Matrix3()) : new THREE.Matrix3(), type: 'mat3' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(new THREE.Matrix3()) : new THREE.Matrix3(), type: 'mat3' };
+                } else if (a[1].includes('mat4')) {
+                    uniforms[u] = { value: arraySize > 1 ? new Array(arraySize).fill(new THREE.Matrix4()) : new THREE.Matrix4(), type: 'mat4' };
+                    uniformSettings[u] = { default: arraySize > 1 ? new Array(arraySize).fill(new THREE.Matrix4()) : new THREE.Matrix4(), type: 'mat4' };
+                }
+                // Add more types if needed
+            }
+            uniformNames.push(u);
+        });
+    
+        // Merge with default uniforms (optional step if you want to ensure all defaults are present)
+        uniforms = { ...uniforms };
+        uniformSettings = { ...uniformSettings };
+    
+        return { uniformNames, uniforms, uniformSettings };
+    }
+    
+    clearGUI() {
+        if(this.guiControllers) Object.keys(this.guiControllers).forEach(c => {
+            let controller = this.guiControllers[c];
+            controller.items.forEach((item)=>{controller.menu.remove(item);})
+        });
+        this.guiControllers = {};
+    }
 
-        
-        let folders = Object.keys(this.gui.__folders)
-        if (!folders.includes('Uniforms')){
+    generateGUI(uniformNames = this.shaderSettings[0].uniformNames, material = this.materials[0]) {
+        if (!this.gui) return undefined;
+
+        let updateUniforms = (key, value) => {
+            if (material.uniforms[key] == null) material.uniforms[key] = {};
+            material.uniforms[key].value = value;
+        };
+
+        let folders = Object.keys(this.gui.__folders);
+        if (!folders.includes('Uniforms')) {
             this.gui.addFolder('Uniforms');
         }
-        let paramsMenu = this.gui.__folders['Uniforms']
 
-        this.guiControllers.forEach(c => {
-            paramsMenu.remove(c)
-        })
-        this.guiControllers = [];        
+
+        let paramsMenu = this.gui.__folders['Uniforms'];
+
+        if(this.guiControllers) Object.keys(this.guiControllers).forEach(c => {
+            let controller = this.guiControllers[c];
+            controller.items.forEach((item)=>{controller.menu.remove(item);})
+        });
+
+        this.guiControllers = { 'Uniforms':{menu:paramsMenu, items:[]} };
 
         let keys = Object.keys(this.uniforms);
-        uniformNames.forEach((name)=> {
-            if(keys.indexOf(name) > -1){
-                if(typeof this.uniforms[name].value !== 'object' && this.uniformSettings[name].min && this.uniformSettings[name].max && this.uniformSettings[name].step){
-                    this.guiControllers.push(
-                        paramsMenu.add(
-                            this.uniforms, 
-                            name, 
+        
+        let guiObject = {};
+        uniformNames.forEach((name) => {
+            guiObject[name] = this.uniforms[name].value;
+        })
+
+        uniformNames.forEach((name) => {
+            if (keys.indexOf(name) > -1) {
+                if (typeof this.uniforms[name].value !== 'object' && this.uniformSettings[name].min && this.uniformSettings[name].max && this.uniformSettings[name].step) {
+                    let menuitem = paramsMenu.add(
+                        guiObject,
+                        name,
+                        this.uniformSettings[name].min,
+                        this.uniformSettings[name].max,
+                        this.uniformSettings[name].step
+                    ); 
+
+                    menuitem.onChange(
+                        (val) => updateUniforms(name, val)
+                    );
+                    
+                    this.guiControllers['Uniforms'].items.push(menuitem);
+                    
+                } else if (typeof this.uniforms[name].value === 'object') {
+                    let folders = Object.keys(this.gui.__folders);
+                    if (!folders.includes(name)) {
+                        this.gui.addFolder(name);
+                    }
+
+                    let subMenu = this.gui.__folders[name];
+
+                    this.guiControllers[name] = {menu:subMenu, items:[]};
+
+                    for(const key in this.uniforms[name].value) {
+                        let menuitem = subMenu.add(
+                            guiObject[name],
+                            key,
                             this.uniformSettings[name].min,
                             this.uniformSettings[name].max,
                             this.uniformSettings[name].step
-                            ).onChange(
-                                (val) => updateUniforms(name,val))
-                            );
+                        ); 
+    
+                        menuitem.onChange(
+                            (val) => {
+                                guiObject[name][key] = val;
+                                updateUniforms(name, guiObject[name]);
+                            }
+                        );
+                        
+                        this.guiControllers[name].items.push(menuitem);
+                    }
+
                 }
-            } 
+            }
         });
     }
 
-
-    //test the renderer
-    createRenderer(canvas=this.canvas) {
+    // Test the renderer
+    createRenderer(canvas = this.canvas) {
         this.gui;
         this.guiControllers = [];
-        try{
-            this.gui = new GUI({ autoPlace: false });
-            this.generateGUI()
-        } catch(err) {
-            //probably not on main thread
+        try {
+            this.gui = new GUI({ autoPlace: true });
+            this.generateGUI();
+        } catch (err) {
+            // probably not on main thread
         }
 
         /**
          * Scene
          */
-        this.three.scene = new THREE.Scene()
+        this.three.scene = new THREE.Scene();
 
         /**
          * Camera
          */
 
-        this.baseCameraPos = new THREE.Vector3(0,0,3)
-        this.camera = new THREE.PerspectiveCamera(75, canvas.offsetWidth/canvas.offsetHeight, 0.01, 1000)
-        this.camera.position.z = this.baseCameraPos.z//*1.5
+        this.baseCameraPos = new THREE.Vector3(0, 0, 0.65*canvas.width*canvas.height/canvas.width);
+        this.camera = new THREE.PerspectiveCamera(75, (canvas?.width || 512) / (canvas?.height || 512), 0.01, 1000);
+
+        // Set the aspect ratio and ensure the camera's position is appropriate
+        this.camera.aspect = canvas.width / canvas.height;
+        this.camera.updateProjectionMatrix();
+
+        // Position the camera so that the mesh fits perfectly in the view
+        this.camera.position.z = this.baseCameraPos.z;
+        this.camera.lookAt(0, 0, 0);
 
         /**
          * Texture Params
          */
 
-        let containerAspect = canvas.offsetWidth/canvas.offsetHeight //this.appletContainer.offsetWidth/this.appletContainer.offsetHeight
+        let containerAspect = canvas.width / canvas.height;
         this.fov_y = this.camera.position.z * this.camera.getFilmHeight() / this.camera.getFocalLength();
 
         // Fit Screen
-        this.three.meshWidth = this.fov_y * this.camera.aspect
-        this.three.meshHeight = this.three.meshWidth/containerAspect
+        this.three.meshWidth = this.fov_y * this.camera.aspect;
+        this.three.meshHeight = this.three.meshWidth / containerAspect;
 
         // Renderer
-        this.three.renderer = new THREE.WebGLRenderer( { antialias: true, alpha: true, canvas:this.canvas } );
-        this.three.renderer.setPixelRatio(Math.min(window.devicePixelRatio,2))
-        this.three.renderer.setSize( this.canvas.offsetWidth, this.canvas.offsetHeight );
-        this.three.renderer.domElement.style.width = '100%'
-        this.three.renderer.domElement.style.height = '100%'
-        this.three.renderer.domElement.style.opacity = '0'
-        this.three.renderer.domElement.style.transition = 'opacity 1s'
+        this.three.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, canvas: this.canvas });
+        this.three.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.three.renderer.setSize(this.canvas.width, this.canvas.height);
+        // this.three.renderer.domElement.style.width = '100%';
+        // this.three.renderer.domElement.style.height = '100%';
+        // this.three.renderer.domElement.style.opacity = '0';
+        // this.three.renderer.domElement.style.transition = 'opacity 1s';
 
         // Controls
-        this.three.controls = new OrbitControls(this.camera, this.three.renderer.domElement)
-        this.three.controls.enablePan = true
-        this.three.controls.enableDamping = true
+        this.three.controls = new OrbitControls(this.camera, this.three.renderer.domElement);
+        this.three.controls.enablePan = true;
+        this.three.controls.enableDamping = true;
         this.three.controls.enabled = true;
-        this.three.controls.minPolarAngle = 2*Math.PI/6; // radians
-        this.three.controls.maxPolarAngle = 4*Math.PI/6; // radians
+        this.three.controls.minPolarAngle = (2 * Math.PI) / 6; // radians
+        this.three.controls.maxPolarAngle = (4 * Math.PI) / 6; // radians
         this.three.controls.minDistance = this.baseCameraPos.z; // radians
-        this.three.controls.maxDistance = this.baseCameraPos.z*1000; // radians
+        this.three.controls.maxDistance = this.baseCameraPos.z * 1000; // radians
 
-        this.uniforms.iResolution = new THREE.Vector2(this.three.meshWidth, this.three.meshHeight); //Required for ShaderToy shaders
+        //test sphere to check scene 
+        // const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);
+        // const sphereMaterial = new THREE.MeshBasicMaterial({ color: 0x0077ff });
+        // const sphereMesh = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        // this.three.scene.add(sphereMesh);
+
+          // Add the shader mesh to the scene
+        this.meshes.forEach(mesh => {
+            this.three.scene.add(mesh);
+        });
+
+
+        this.uniforms.iResolution.value = new THREE.Vector2(
+            this.three.meshWidth, 
+            this.three.meshHeight
+        ); // Required for ShaderToy shaders
 
         // Animate
         this.startTime = Date.now();
 
         let render = () => {
-            if (this.three.renderer.domElement != null){
- 
-                 let time = (Date.now() - this.startTime)/1000;
-                 this.uniforms.iTimeDelta = time - this.uniforms.iTime;
-                 this.uniforms.iTime = time;
-                 this.uniforms.iFrame++;
-                 this.uniforms.iFrameRate = 1/(this.uniforms.iTimeDelta*0.001);  
-                 
-                this.three.meshes.forEach(p => {
-                    this.updateMaterialUniforms(p.material);
+            if (this.three.renderer.domElement != null) {
+                // let time = (Date.now() - this.startTime) / 1000;
+                // if(this.uniforms.iTimeDelta) this.uniforms.iTimeDelta.value = time - this.uniforms.iTime.value;
+                // if(this.uniforms.iTime) this.uniforms.iTime.value = time;
+                // if(this.uniforms.iFrame) this.uniforms.iFrame.value++;
+                // if(this.uniforms.iFrameRate) this.uniforms.iFrameRate.value = 1 / (this.uniforms.iTimeDelta.value * 0.001);
+
+                this.meshes.forEach((p,i) => {
+                    this.updateMaterialUniforms(p.material, this.shaderSettings[i].uniformNames, this.currentViews[i]);
                 });
 
-                this.three.renderer.render( this.three.scene, this.camera )
-            }    
-        } 
+                this.three.renderer.render(this.three.scene, this.camera);
+            }
+        };
 
-        this.three.renderer.setAnimationLoop( render );
-
+        this.three.renderer.setAnimationLoop(render);
     }
 
     destroyRenderer() {
@@ -798,5 +1007,4 @@ void main(){
         this.three.renderer.domElement = null;
         this.three.renderer = null;
     }
-
 }
