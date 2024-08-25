@@ -52,6 +52,11 @@ export function main() {
     shaderHelper.three.renderer.setClearColor(0x000000, 1);
     //}, 300);
 
+    // setTimeout(()=>{ //test shader swap
+    //     shaderHelper.setShader(THREEShaderHelper.defaultFragmentSimple);
+    //     shaderHelper.generateGUI(); //regen gui
+    // }, 1000);
+
 
        // Handle mesh geometry selection from the dropdown
     selector.addEventListener('change', (event) => {

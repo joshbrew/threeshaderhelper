@@ -354,14 +354,13 @@ export class THREEShaderHelper {
     addNewShaderMesh(fragment?: any, vertex?: any, type?: string, width?: any, height?: any, name?: string, author?: string): any;
     setUniforms(uniforms?: {}): {};
     setMeshGeometry(type?: string, matidx?: number): any;
-    setMeshRotation(matidx?: number, anglex?: number, angley?: number, anglez?: number): any;
+    setMeshRotation(anglex?: number, angley?: number, anglez?: number, matidx?: number): any;
     setChannelTexture(channelNum?: number, imageOrVideo?: any, material?: any): void;
     resetMaterialUniforms(material?: any, uniformNames?: any[]): void;
     updateMaterialUniforms(material?: any, uniformNames?: any[], meshType?: string): void;
     updateAllMaterialUniforms(): void;
-    setShader(matidx?: number, name?: string, fragmentShader?: string, vertexShader?: string, author?: string): void;
     swapShader(matidx?: number, onchange?: () => void): void;
-    setShaderFromText(matidx?: number, fragmentShaderText?: string, vertexShaderText?: string, onchange?: () => void, name?: string, author?: string): void;
+    setShader(fragmentShaderText?: string, vertexShaderText?: string, onchange?: () => void, matidx?: number, name?: string, author?: string): void;
     getUniformsFromText(shaderText?: string, canvas?: any, date?: Date): {
         uniformNames: any[];
         uniforms: {};

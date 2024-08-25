@@ -11608,7 +11608,7 @@
     const gl = renderer.getContext();
     const defines = parameters.defines;
     let vertexShader = parameters.vertexShader;
-    let fragmentShader2 = parameters.fragmentShader;
+    let fragmentShader = parameters.fragmentShader;
     const shadowMapTypeDefine = generateShadowMapTypeDefine(parameters);
     const envMapTypeDefine = generateEnvMapTypeDefine(parameters);
     const envMapModeDefine = generateEnvMapModeDefine(parameters);
@@ -11853,11 +11853,11 @@
     vertexShader = resolveIncludes(vertexShader);
     vertexShader = replaceLightNums(vertexShader, parameters);
     vertexShader = replaceClippingPlaneNums(vertexShader, parameters);
-    fragmentShader2 = resolveIncludes(fragmentShader2);
-    fragmentShader2 = replaceLightNums(fragmentShader2, parameters);
-    fragmentShader2 = replaceClippingPlaneNums(fragmentShader2, parameters);
+    fragmentShader = resolveIncludes(fragmentShader);
+    fragmentShader = replaceLightNums(fragmentShader, parameters);
+    fragmentShader = replaceClippingPlaneNums(fragmentShader, parameters);
     vertexShader = unrollLoops(vertexShader);
-    fragmentShader2 = unrollLoops(fragmentShader2);
+    fragmentShader = unrollLoops(fragmentShader);
     if (parameters.isRawShaderMaterial !== true) {
       versionString = "#version 300 es\n";
       prefixVertex = [
@@ -11883,7 +11883,7 @@
       ].join("\n") + "\n" + prefixFragment;
     }
     const vertexGlsl = versionString + prefixVertex + vertexShader;
-    const fragmentGlsl = versionString + prefixFragment + fragmentShader2;
+    const fragmentGlsl = versionString + prefixFragment + fragmentShader;
     const glVertexShader = WebGLShader(gl, gl.VERTEX_SHADER, vertexGlsl);
     const glFragmentShader = WebGLShader(gl, gl.FRAGMENT_SHADER, fragmentGlsl);
     gl.attachShader(program, glVertexShader);
@@ -11981,9 +11981,9 @@
     }
     update(material) {
       const vertexShader = material.vertexShader;
-      const fragmentShader2 = material.fragmentShader;
+      const fragmentShader = material.fragmentShader;
       const vertexShaderStage = this._getShaderStage(vertexShader);
-      const fragmentShaderStage = this._getShaderStage(fragmentShader2);
+      const fragmentShaderStage = this._getShaderStage(fragmentShader);
       const materialShaders = this._getShaderCacheForMaterial(material);
       if (materialShaders.has(vertexShaderStage) === false) {
         materialShaders.add(vertexShaderStage);
@@ -12089,15 +12089,15 @@
       if (geometry.morphAttributes.position !== void 0) morphTextureStride = 1;
       if (geometry.morphAttributes.normal !== void 0) morphTextureStride = 2;
       if (geometry.morphAttributes.color !== void 0) morphTextureStride = 3;
-      let vertexShader, fragmentShader2;
+      let vertexShader, fragmentShader;
       let customVertexShaderID, customFragmentShaderID;
       if (shaderID) {
         const shader = ShaderLib[shaderID];
         vertexShader = shader.vertexShader;
-        fragmentShader2 = shader.fragmentShader;
+        fragmentShader = shader.fragmentShader;
       } else {
         vertexShader = material.vertexShader;
-        fragmentShader2 = material.fragmentShader;
+        fragmentShader = material.fragmentShader;
         _customShaders.update(material);
         customVertexShaderID = _customShaders.getVertexShaderID(material);
         customFragmentShaderID = _customShaders.getFragmentShaderID(material);
@@ -12151,7 +12151,7 @@
         shaderType: material.type,
         shaderName: material.name,
         vertexShader,
-        fragmentShader: fragmentShader2,
+        fragmentShader,
         defines: material.defines,
         customVertexShaderID,
         customFragmentShaderID,
@@ -22953,12 +22953,8 @@ void main() {
         uniform float iTime; //Shader time increment
 
         uniform float iHEG;
-        uniform float iHRV;
-        uniform float iHR;
-        uniform float iHB;
-        uniform float iFrontalAlpha1Coherence;
-        uniform float iFFT[FFTLENGTH];
         uniform float iAudio[FFTLENGTH];
+
         void main(){
             gl_FragColor = vec4(iAudio[20]/255. + iHEG*0.1+gl_FragCoord.x/gl_FragCoord.y,gl_FragCoord.y/gl_FragCoord.x,gl_FragCoord.y/gl_FragCoord.x - iHEG*0.1 - iAudio[120]/255.,1.0);
         }              
@@ -23189,7 +23185,7 @@ void main() {
       let mesh = new Mesh(geometry, material);
       this.materials = [material];
       this.meshes = [mesh];
-      this.setMeshRotation(0);
+      this.setMeshRotation();
     }
     createDefaultUniforms(canvas = this.canvas, date = /* @__PURE__ */ new Date()) {
       return {
@@ -23425,7 +23421,7 @@ void main() {
       }
       return this.meshes[matidx];
     }
-    setMeshRotation(matidx = 0, anglex = 0, angley = Math.PI, anglez = 0) {
+    setMeshRotation(anglex = 0, angley = Math.PI, anglez = 0, matidx = 0) {
       if (this.meshes[matidx])
         this.meshes[matidx].rotation.set(anglex, angley, anglez);
       return this.meshes[matidx];
@@ -23590,55 +23586,34 @@ void main() {
         }
       });
     }
-    // Applies to main shader
-    setShader(matidx = 0, name = "", fragmentShader2 = ``, vertexShader = _THREEShaderHelper.defaultVertex, author = "") {
-      const { uniforms, uniformNames, uniformSettings } = this.getUniformsFromText(fragmentShader2);
-      this.uniforms = uniforms;
-      this.uniformSettings = uniformSettings;
-      this.shaderSettings[matidx].name = name;
-      this.shaderSettings[matidx].vertexShader = vertexShader;
-      this.shaderSettings[matidx].fragmentShader = fragmentShader2;
-      this.shaderSettings[matidx].uniformNames = uniformNames;
-      this.shaderSettings[matidx].author = author;
-      this.materials[matidx] = new ShaderMaterial({
-        vertexShader: this.shaderSettings[matidx].vertexShader,
-        fragmentShader: this.shaderSettings[matidx].fragmentShader,
-        side: DoubleSide,
-        transparent: true,
-        uniforms
-      });
-      this.updateMaterialUniforms(this.materials[matidx], uniformNames, this.currentViews[matidx]);
-      if (this.meshes[matidx]) {
-        this.meshes[matidx].material.dispose();
-        this.meshes[matidx].material = this.materials[matidx];
-      }
-    }
     swapShader(matidx = 0, onchange = () => {
       this.startTime = Date.now();
     }) {
-      const { uniforms, uniformNames, uniformSettings } = this.getUniformsFromText(fragmentShader);
-      this.uniforms = uniforms;
-      this.uniformSettings = uniformSettings;
+      if (!this.uniforms) {
+        const { uniformNames, uniforms, uniformSettings } = this.getUniformsFromText(this.shaderSettings[matidx].fragmentShader);
+        this.uniforms = uniforms;
+        this.uniformSettings = uniformSettings;
+      }
       this.materials[matidx] = new ShaderMaterial({
         vertexShader: this.shaderSettings[matidx].vertexShader,
         fragmentShader: this.shaderSettings[matidx].fragmentShader,
         side: DoubleSide,
         transparent: true,
-        uniforms
+        uniforms: this.uniforms
       });
-      this.updateMaterialUniforms(this.materials[matidx], uniformNames);
+      this.updateMaterialUniforms(this.materials[matidx], this.shaderSettings[matidx].uniformNames);
       if (this.meshes[matidx]) {
         this.meshes[matidx].material.dispose();
         this.meshes[matidx].material = this.materials[matidx];
       }
       onchange();
     }
-    setShaderFromText(matidx = 0, fragmentShaderText = _THREEShaderHelper.defaultFragment, vertexShaderText = _THREEShaderHelper.defaultVertex, onchange = () => {
+    setShader(fragmentShaderText = _THREEShaderHelper.defaultFragment, vertexShaderText = _THREEShaderHelper.defaultVertex, onchange = () => {
       this.startTime = Date.now();
-    }, name = "", author = "") {
+    }, matidx = 0, name = "", author = "") {
       this.fragment = fragmentShaderText;
       this.vertex = vertexShaderText;
-      const { uniformNames, uniforms, uniformSettings } = this.getUniformsFromText();
+      const { uniformNames, uniforms, uniformSettings } = this.getUniformsFromText(fragmentShaderText);
       this.uniforms = uniforms;
       this.uniformSettings = uniformSettings;
       this.shaderSettings[matidx].name = name;
@@ -23648,7 +23623,7 @@ void main() {
       this.shaderSettings[matidx].uniformNames = uniformNames;
       this.swapShader(matidx, onchange);
     }
-    getUniformsFromText(shaderText = "", canvas = this.canvas, date = /* @__PURE__ */ new Date()) {
+    getUniformsFromText(shaderText = this.fragment, canvas = this.canvas, date = /* @__PURE__ */ new Date()) {
       const predefinedUniforms = this.createDefaultUniforms(canvas, date);
       const predefinedUniformSettings = this.createDefaultUniformSettings(canvas, date);
       let defineRegex = new RegExp("#define\\s+(\\w+)\\s+(\\d+)", "g");
@@ -23728,19 +23703,15 @@ void main() {
         if (material.uniforms[key] == null) material.uniforms[key] = {};
         material.uniforms[key].value = value;
       };
+      if (this.guiControllers) Object.keys(this.guiControllers).forEach((c) => {
+        this.gui.removeFolder(this.gui.__folders[c]);
+      });
       let folders = Object.keys(this.gui.__folders);
       if (!folders.includes("Uniforms")) {
         this.gui.addFolder("Uniforms");
       }
       let paramsMenu = this.gui.__folders["Uniforms"];
-      if (this.guiControllers) Object.keys(this.guiControllers).forEach((c) => {
-        let controller = this.guiControllers[c];
-        controller.items.forEach((item) => {
-          controller.menu.remove(item);
-        });
-      });
       this.guiControllers = { "Uniforms": { menu: paramsMenu, items: [] } };
-      let keys = Object.keys(this.uniforms);
       let guiObject = {};
       uniformNames.forEach((name) => {
         guiObject[name] = this.uniforms[name].value;
@@ -23876,7 +23847,7 @@ void main() {
     const shaderHelper = new THREEShaderHelper(
       canvas,
       sounds,
-      THREEShaderHelper.juliaFragment,
+      THREEShaderHelper.defaultFragment,
       THREEShaderHelper.defaultVertex
     );
     shaderHelper.createRenderer();

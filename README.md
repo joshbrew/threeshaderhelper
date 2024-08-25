@@ -30,6 +30,19 @@ export function main() {
     const button = document.createElement('button');
     button.innerText = 'Play Sound';
     document.body.appendChild(button);
+
+    // Create a dropdown selector for mesh geometry
+    const selector = document.createElement('select');
+    const options = ['plane', 'sphere', 'halfsphere', 'circle', 'vrscreen'];
+    options.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.innerText = option;
+        selector.appendChild(opt);
+    });
+    document.body.appendChild(selector);
+    
+    document.body.insertAdjacentHTML('beforeend',`<br/>`)
     
     const canvas = document.createElement('canvas');
     canvas.style.width = '512px';
@@ -46,18 +59,27 @@ export function main() {
     const shaderHelper = new THREEShaderHelper(
         canvas, 
         sounds,
-        THREEShaderHelper.defaultFragment, //replace with shader text
-        undefined, //can use the default vertex shader by leaving undefined
-        'sphere' //you can project onto different meshes using uv mapping, the options are 'plane', 'sphere', 'halfsphere', 'circle', 'vrscreen'. The VR Screen mimics a curved screen to fill peripherals rather than full a half sphere
+        THREEShaderHelper.defaultFragment,
+        THREEShaderHelper.defaultVertex
     );
     
     // Set up the default renderer and start the animation loop
     shaderHelper.createRenderer();
-
+    // shaderHelper.generateGUI();
     // Optional: Set a background color for the renderer to see if it updates
     shaderHelper.three.renderer.setClearColor(0x000000, 1);
     //}, 300);
 
+    setTimeout(()=>{ //test shader swap
+        shaderHelper.setShader(THREEShaderHelper.defaultFragmentSimple);
+        shaderHelper.generateGUI(); //regen gui
+    }, 1000);
+
+
+       // Handle mesh geometry selection from the dropdown
+    selector.addEventListener('change', (event) => {
+        shaderHelper.setMeshGeometry(event.target.value);
+    });
 
     // Instantiate the Sounds class when the button is clicked and play a default sound
     button.addEventListener('click', () => {
@@ -107,6 +129,9 @@ Creates a GUI interface for interacting with the shader's uniforms, allowing for
 Remove the GUI items you created, if it exists. Auto clears if calling generateGUI multiple times.
 
 #### More Instance Methods for Frontend Use
+`this.setShader(fragmentShaderText, vertexShaderText, onchange, matidx=0, name, author)`
+Sets a shader from provided text for both fragment and vertex shaders, and applies it to the specified material index.
+
 `this.addUniformSetting(name, defaultValue, type, callback, min, max, step)`
 Adds a new uniform setting to the shader, allowing for customization and interaction through GUI controls.
 
@@ -116,10 +141,10 @@ Creates and adds a new shader mesh to the scene with the specified fragment and 
 `this.setUniforms(uniforms)`
 Updates the values of the specified uniforms, allowing for dynamic interaction with the shader's parameters.
 
-`this.setMeshGeometry(type, matidx)`
+`this.setMeshGeometry(type, matidx=0)`
 Sets the geometry of the specified mesh to a new type, such as 'plane' or 'sphere', and updates its rotation.
 
-`this.setMeshRotation(matidx, anglex, angley, anglez)`
+`this.setMeshRotation(anglex, angley, anglez, matidx=0)`
 Adjusts the rotation of the specified mesh to the provided angles.
 
 `this.resetMaterialUniforms(material, uniformNames)`
@@ -131,14 +156,8 @@ Dynamically updates the material's uniforms based on the current time, mouse inp
 `this.updateAllMaterialUniforms()`
 Updates all the uniforms for all materials in the scene simultaneously, ensuring consistency across multiple shaders.
 
-`this.setShaderFromText(matidx, fragmentShaderText, vertexShaderText, name, author)`
-Sets a shader from provided text for both fragment and vertex shaders, and applies it to the specified material index.
-
 `this.swapShader(matidx, onchange)`
 Swaps the shader for the specified material index and applies any additional changes using the provided callback.
-
-`this.setShader(matidx, name, vertexShader, fragmentShader, uniformNames, author)`
-Configures a shader for the specified material index, using the provided shader text, name, and author.
 
 `this.setChannelTexture(channelNum, imageOrVideo, material)`
 Sets a texture or video as the input for a specific channel in the shader, updating the corresponding uniform values.

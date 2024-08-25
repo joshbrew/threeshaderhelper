@@ -28,12 +28,8 @@ export class THREEShaderHelper {
         uniform float iTime; //Shader time increment
 
         uniform float iHEG;
-        uniform float iHRV;
-        uniform float iHR;
-        uniform float iHB;
-        uniform float iFrontalAlpha1Coherence;
-        uniform float iFFT[FFTLENGTH];
         uniform float iAudio[FFTLENGTH];
+
         void main(){
             gl_FragColor = vec4(iAudio[20]/255. + iHEG*0.1+gl_FragCoord.x/gl_FragCoord.y,gl_FragCoord.y/gl_FragCoord.x,gl_FragCoord.y/gl_FragCoord.x - iHEG*0.1 - iAudio[120]/255.,1.0);
         }              
@@ -287,7 +283,7 @@ export class THREEShaderHelper {
         this.materials = [material];
         this.meshes = [mesh];
 
-        this.setMeshRotation(0);
+        this.setMeshRotation();
     }
 
     createDefaultUniforms(canvas=this.canvas, date = new Date()) {
@@ -557,7 +553,7 @@ export class THREEShaderHelper {
         return this.meshes[matidx];
     }
 
-    setMeshRotation(matidx = 0, anglex = 0, angley = Math.PI, anglez = 0) {
+    setMeshRotation(anglex = 0, angley = Math.PI, anglez = 0, matidx = 0) {
         if (this.meshes[matidx])
             this.meshes[matidx].rotation.set(anglex, angley, anglez);
 
@@ -735,47 +731,24 @@ export class THREEShaderHelper {
         });
     }
 
-    // Applies to main shader
-    setShader(matidx = 0, name = '',fragmentShader = ``,  vertexShader = THREEShaderHelper.defaultVertex, author = '') {
-        const {uniforms, uniformNames, uniformSettings} = this.getUniformsFromText(fragmentShader);
-        this.uniforms = uniforms; this.uniformSettings = uniformSettings;
-
-        this.shaderSettings[matidx].name = name;
-        this.shaderSettings[matidx].vertexShader = vertexShader;
-        this.shaderSettings[matidx].fragmentShader = fragmentShader;
-        this.shaderSettings[matidx].uniformNames = uniformNames;
-        this.shaderSettings[matidx].author = author;
-
-
-        this.materials[matidx] = new THREE.ShaderMaterial({
-            vertexShader: this.shaderSettings[matidx].vertexShader,
-            fragmentShader: this.shaderSettings[matidx].fragmentShader,
-            side: THREE.DoubleSide,
-            transparent: true,
-            uniforms: uniforms
-        });
-
-        this.updateMaterialUniforms(this.materials[matidx], uniformNames, this.currentViews[matidx]);
-
-        if (this.meshes[matidx]) {
-            this.meshes[matidx].material.dispose();
-            this.meshes[matidx].material = this.materials[matidx];
-        }
-    }
 
     swapShader(matidx = 0, onchange = () => { this.startTime = Date.now(); }) {
-        const {uniforms, uniformNames, uniformSettings} = this.getUniformsFromText(fragmentShader);
-        this.uniforms = uniforms; this.uniformSettings = uniformSettings;
+
+        if(!this.uniforms) {
+            const {uniformNames, uniforms, uniformSettings} = this.getUniformsFromText(this.shaderSettings[matidx].fragmentShader);
+            this.uniforms = uniforms; 
+            this.uniformSettings = uniformSettings;
+        }
 
         this.materials[matidx] = new THREE.ShaderMaterial({
             vertexShader: this.shaderSettings[matidx].vertexShader,
             fragmentShader: this.shaderSettings[matidx].fragmentShader,
             side: THREE.DoubleSide,
             transparent: true,
-            uniforms: uniforms
+            uniforms: this.uniforms
         });
 
-        this.updateMaterialUniforms(this.materials[matidx], uniformNames);
+        this.updateMaterialUniforms(this.materials[matidx], this.shaderSettings[matidx].uniformNames);
 
         if (this.meshes[matidx]) {
             this.meshes[matidx].material.dispose();
@@ -785,11 +758,11 @@ export class THREEShaderHelper {
         onchange();
     }
 
-    setShaderFromText(
-        matidx = 0,
+    setShader(
         fragmentShaderText = THREEShaderHelper.defaultFragment,
         vertexShaderText = THREEShaderHelper.defaultVertex,
         onchange = () => { this.startTime = Date.now(); },
+        matidx = 0,
         name = '',
         author = ''
     ) {
@@ -797,7 +770,7 @@ export class THREEShaderHelper {
         this.vertex = vertexShaderText;
 
         // Dynamically Extract Uniforms
-        const {uniformNames, uniforms, uniformSettings} = this.getUniformsFromText()
+        const {uniformNames, uniforms, uniformSettings} = this.getUniformsFromText(fragmentShaderText)
         this.uniforms = uniforms; 
         this.uniformSettings = uniformSettings;
 
@@ -810,7 +783,7 @@ export class THREEShaderHelper {
         this.swapShader(matidx, onchange);
     }
 
-    getUniformsFromText(shaderText='', canvas = this.canvas, date = new Date()) {
+    getUniformsFromText(shaderText=this.fragment, canvas = this.canvas, date = new Date()) {
         // Define the default uniforms and their corresponding settings
         const predefinedUniforms = this.createDefaultUniforms(canvas, date);
         const predefinedUniformSettings = this.createDefaultUniformSettings(canvas, date);
@@ -907,22 +880,20 @@ export class THREEShaderHelper {
             material.uniforms[key].value = value;
         };
 
+        if(this.guiControllers) Object.keys(this.guiControllers).forEach(c => {
+            // let controller = this.guiControllers[c];
+            // controller.items.forEach((item)=>{controller.menu.remove(item);})
+            this.gui.removeFolder(this.gui.__folders[c]);
+        });
+
         let folders = Object.keys(this.gui.__folders);
         if (!folders.includes('Uniforms')) {
             this.gui.addFolder('Uniforms');
         }
 
-
         let paramsMenu = this.gui.__folders['Uniforms'];
 
-        if(this.guiControllers) Object.keys(this.guiControllers).forEach(c => {
-            let controller = this.guiControllers[c];
-            controller.items.forEach((item)=>{controller.menu.remove(item);})
-        });
-
         this.guiControllers = { 'Uniforms':{menu:paramsMenu, items:[]} };
-
-        let keys = Object.keys(this.uniforms);
         
         let guiObject = {};
         uniformNames.forEach((name) => {
