@@ -47,7 +47,8 @@ export function main() {
         canvas, 
         sounds,
         THREEShaderHelper.defaultFragment, //replace with shader text
-        undefined //can use the default vertex shader by leaving undefined
+        undefined, //can use the default vertex shader by leaving undefined
+        'sphere' //you can project onto different meshes using uv mapping, the options are 'plane', 'sphere', 'halfsphere', 'circle', 'vrscreen'. The VR Screen mimics a curved screen to fill peripherals rather than full a half sphere
     );
     
     // Set up the default renderer and start the animation loop
@@ -115,7 +116,7 @@ Creates and adds a new shader mesh to the scene with the specified fragment and 
 `this.setUniforms(uniforms)`
 Updates the values of the specified uniforms, allowing for dynamic interaction with the shader's parameters.
 
-`this.setMeshGeometry(matidx, type)`
+`this.setMeshGeometry(type, matidx)`
 Sets the geometry of the specified mesh to a new type, such as 'plane' or 'sphere', and updates its rotation.
 
 `this.setMeshRotation(matidx, anglex, angley, anglez)`

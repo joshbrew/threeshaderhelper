@@ -3,13 +3,14 @@ export class THREEShaderHelper {
     static defaultVertex: string;
     static defaultFragmentSimple: string;
     static defaultFragment: string;
+    static juliaFragment: string;
     static makeBlankTexture: (w?: number, h?: number) => any;
     static generateShaderGeometry(type: string, width: any, height: any, fragment?: string, vertex?: string): any;
     static generateShaderMaterial(fragment?: string, vertex?: string): any;
     static createMeshGeometry(type?: string, width?: number, height?: number): any;
     static downsample(array: any, fitCount: any, scalar?: number): any;
     static upsample(data: any, fitCount: any, scalar?: number): any[];
-    constructor(canvas?: any, sounds?: any, fragment?: string, vertex?: string);
+    constructor(canvas?: any, sounds?: any, fragment?: string, vertex?: string, meshType?: string);
     audio: any;
     canvas: any;
     startTime: number;
@@ -257,6 +258,7 @@ export class THREEShaderHelper {
             default: number;
             min: number;
             max: number;
+            step: number;
         };
         iBRV: {
             default: number;
@@ -351,7 +353,7 @@ export class THREEShaderHelper {
     addUniformSetting(name?: string, defaultValue?: number, type?: any, callback?: () => number, min?: number, max?: number, step?: number): void;
     addNewShaderMesh(fragment?: any, vertex?: any, type?: string, width?: any, height?: any, name?: string, author?: string): any;
     setUniforms(uniforms?: {}): {};
-    setMeshGeometry(matidx?: number, type?: string): any;
+    setMeshGeometry(type?: string, matidx?: number): any;
     setMeshRotation(matidx?: number, anglex?: number, angley?: number, anglez?: number): any;
     setChannelTexture(channelNum?: number, imageOrVideo?: any, material?: any): void;
     resetMaterialUniforms(material?: any, uniformNames?: any[]): void;

@@ -3,6 +3,8 @@ import * as THREE from 'three'
 import { THREEShaderHelper } from '../THREEShaderHelper'; // Assuming this is the file where your shader helper class is defined
 import { Sounds } from '../sound'; // Assuming this is where your Sounds class is defined
 
+import './index.css'
+
 // Function to run the default shader and play a sound
 export function main() {
     // Create a canvas element and append it to the body
@@ -10,6 +12,19 @@ export function main() {
     const button = document.createElement('button');
     button.innerText = 'Play Sound';
     document.body.appendChild(button);
+
+    // Create a dropdown selector for mesh geometry
+    const selector = document.createElement('select');
+    const options = ['plane', 'sphere', 'halfsphere', 'circle', 'vrscreen'];
+    options.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option;
+        opt.innerText = option;
+        selector.appendChild(opt);
+    });
+    document.body.appendChild(selector);
+    
+    document.body.insertAdjacentHTML('beforeend',`<br/>`)
     
     const canvas = document.createElement('canvas');
     canvas.style.width = '512px';
@@ -25,7 +40,9 @@ export function main() {
     // Instantiate the THREEShaderHelper with the canvas
     const shaderHelper = new THREEShaderHelper(
         canvas, 
-        sounds
+        sounds,
+        THREEShaderHelper.juliaFragment,
+        THREEShaderHelper.defaultVertex
     );
     
     // Set up the default renderer and start the animation loop
@@ -35,6 +52,11 @@ export function main() {
     shaderHelper.three.renderer.setClearColor(0x000000, 1);
     //}, 300);
 
+
+       // Handle mesh geometry selection from the dropdown
+    selector.addEventListener('change', (event) => {
+        shaderHelper.setMeshGeometry(event.target.value);
+    });
 
     // Instantiate the Sounds class when the button is clicked and play a default sound
     button.addEventListener('click', () => {

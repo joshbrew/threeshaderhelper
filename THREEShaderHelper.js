@@ -19,6 +19,7 @@ export class THREEShaderHelper {
         }
     `;
 
+
     //uniforms will be parsed into our manipulable system
     static defaultFragmentSimple = `
         #define FFTLENGTH 256
@@ -38,6 +39,7 @@ export class THREEShaderHelper {
         }              
     `;
 
+    //borrowed from shadertoy
     static defaultFragment = `
         #define FFTSIZE 256
         precision mediump float;
@@ -146,11 +148,92 @@ export class THREEShaderHelper {
 
     `;
 
+    //borrowed from shadertoy
+    static juliaFragment = `
+        #define FFTLENGTH 256
+        precision mediump float;
+        varying vec2 vUv;
+        uniform vec2 iResolution;
+        uniform float iTime;
+        uniform float iHEG;
+        uniform float iHRV;
+        uniform float iHR;
+        uniform float iHB;
+        uniform float iFrontalAlpha1Coherence;
+        uniform float iFFT[FFTLENGTH];
+        uniform float iAudio[FFTLENGTH];
+
+        vec2 f(vec2 x, vec2 c) {
+            return mat2(x,-x.y,x.x)*x + c;
+        }
+
+        vec3 palette(float t, vec3 a, vec3 b, vec3 c, vec3 d) {
+            return a + b*cos( 6.28318*(c*t+d) );
+        }
+
+        void mainImage( out vec4 fragColor, in vec2 fragCoord )
+        {
+            vec2 uv = fragCoord/iResolution.xy;
+            uv -= 0.5;uv *= 1.3;uv += 0.5;
+            vec4 col = vec4(1.0);
+            float time = iTime*0.05+1.0;
+            
+            int u_maxIterations = 75;
+            
+            float r=0.7885*(sin((time/(3.+iHRV*0.01+iFFT[80]*0.001+iAudio[150]*0.0001+iHB))-1.57)*0.2+0.85);
+            vec2 c=vec2(r*cos((time/(3.01+iHEG+iFFT[30]*0.001-iAudio[60]*0.0001+iFrontalAlpha1Coherence))),r*sin((time/3.)));
+            
+            vec2 z = vec2(0.);
+            z.x = 3.0 * (uv.x - 0.5);
+            z.y = 2.0 * (uv.y - 0.5);
+            bool escaped = false;
+            int iterations;
+            for (int i = 0; i < 10000; i++) {
+                if (i > u_maxIterations) break;
+                iterations = i;
+                z = f(z, c);
+                if (dot(z,z) > 4.0) {
+                    escaped = true;
+                    break;
+                }
+            }
+                    
+            vec3 iterationCol = vec3(palette(float(iterations)/ float(u_maxIterations),
+                                            vec3(0.5),
+                                            vec3(0.5),
+                                            vec3(1.0, 1.0, 0.0),
+                                            vec3(0.3 + 0.3 * sin(time),
+                                                0.2 + 0.2 * sin(1. + time),
+                                                0.2  + 0.2 * sin(1.5 + time))));
+                
+            vec3 coreCol = vec3(0.);
+            
+            float f_ite = float(iterations);
+            float f_maxIte = float(u_maxIterations);
+            fragColor = vec4(escaped ? iterationCol : coreCol,3.-f_ite/f_maxIte );
+        }
+
+
+        void main() {
+            mainImage(gl_FragColor, vUv*iResolution);
+        }
+
+
+        /** SHADERDATA
+        {
+            "title": "Fractal.4",
+            "description": "Old fractal exploration https://codepen.io/gThiesson/pen/PowYRqg",
+            "model": "nothing"
+        }
+        */
+    `;
+
     constructor(
         canvas = undefined, 
         sounds = undefined,
         fragment = THREEShaderHelper.defaultFragment,
-        vertex = THREEShaderHelper.defaultVertex
+        vertex = THREEShaderHelper.defaultVertex,
+        meshType = 'plane' //'plane' 'sphere', 'halfsphere' 'vrscreen' 'circle'
     ) {
         if (!canvas) {
             console.error('THREEShaderHelper needs a canvas!');
@@ -187,8 +270,8 @@ export class THREEShaderHelper {
 
         this.three = {};
 
-        let geometry = THREEShaderHelper.createMeshGeometry('plane', canvas?.width || 512, canvas?.height || 512);
-        this.currentViews = ['plane'];
+        let geometry = THREEShaderHelper.createMeshGeometry(meshType, canvas?.width || 512, canvas?.height || 512);
+        this.currentViews = [meshType];
 
         let material = new THREE.ShaderMaterial({
             transparent: true,
@@ -269,7 +352,7 @@ export class THREEShaderHelper {
             iHRV: { default: 0, min: 0, max: 40, step: 0.5 },
             iHEG: { default: 0, min: -3, max: 3, step: 0.1 },
             iHR: { default: 0, min: 0, max: 240, step: 1 },
-            iHB: { default: 0, min: 0, max: 1 },
+            iHB: { default: 0, min: 0, max: 1, step: 0.1 },
             iBRV: { default: 0, min: 0, max: 10, step: 0.5 },
             iFFT: { default: new Array(256).fill(0), min: 0, max: 1000 },
             iDelta: { default: 0, min: 0, max: 100, step: 0.5 },
@@ -462,7 +545,9 @@ export class THREEShaderHelper {
     }
 
     // Only applies to the main mesh geometry
-    setMeshGeometry(matidx = 0, type = 'plane') {
+    setMeshGeometry(type = 'plane', matidx = 0) {
+        if(!['plane','sphere','vrscreen','halfsphere','circle'].find((t)=>{if(t === type) return true;})) 
+            throw new Error(`Unsupported geometry, the options are 'plane','sphere','vrscreen','halfsphere','circle'`);
         if (this.meshes[matidx]) {
             this.currentViews[matidx] = type;
             this.meshes[matidx].geometry = THREEShaderHelper.createMeshGeometry(type, this.canvas.width, this.canvas.height);
@@ -521,12 +606,14 @@ export class THREEShaderHelper {
 
             //deal with special parameters then move onto custom
             if (name === 'iResolution') {
-                if (meshType === 'halfsphere' || meshType === 'circle') {
-                    material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height);
-                } else if (meshType !== 'plane') {
-                    material.uniforms.iResolution.value = new THREE.Vector2(Math.max(this.canvas.width, this.canvas.height), this.canvas.width); // fix for messed up aspect ratio on vrscreen and sphere
-                } else {
-                    material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height); // leave plane aspect alone
+                if(material.uniforms.iResolution.value?.x !== this.canvas.width && material.uniforms.iResolution.value?.y !== this.canvas.height) {
+                    if (meshType === 'halfsphere' || meshType === 'circle') {
+                        material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height);
+                    } else if (meshType !== 'plane') {
+                        material.uniforms.iResolution.value = new THREE.Vector2(Math.max(this.canvas.width, this.canvas.height), this.canvas.width); // fix for messed up aspect ratio on vrscreen and sphere
+                    } else {
+                        material.uniforms.iResolution.value = new THREE.Vector2(this.canvas.width, this.canvas.height); // leave plane aspect alone
+                    }
                 }
             } else if (name === 'iTime') {
                 material.uniforms.iTime.value = (time - this.startTime) * 0.001;
@@ -843,52 +930,51 @@ export class THREEShaderHelper {
         })
 
         uniformNames.forEach((name) => {
-            if (keys.indexOf(name) > -1) {
-                if (typeof this.uniforms[name].value !== 'object' && this.uniformSettings[name].min && this.uniformSettings[name].max && this.uniformSettings[name].step) {
-                    let menuitem = paramsMenu.add(
-                        guiObject,
-                        name,
+            if(name === 'iResolution' || name === 'iTime' || name === 'iDate' || name === 'iFrame' || name === 'iFrameRate' || name === 'iTimeDelta' || name === 'iMouse' || name === 'iMouseInput') return; //these are just overwritten by internal processes anyway
+            if (typeof this.uniforms[name].value !== 'object' && typeof this.uniformSettings[name].min !== 'undefined' && typeof this.uniformSettings[name].max !== 'undefined' && typeof this.uniformSettings[name].step !== 'undefined') {
+                let menuitem = paramsMenu.add(
+                    guiObject,
+                    name,
+                    this.uniformSettings[name].min,
+                    this.uniformSettings[name].max,
+                    this.uniformSettings[name].step
+                ); 
+
+                menuitem.onChange(
+                    (val) => updateUniforms(name, val)
+                );
+                
+                this.guiControllers['Uniforms'].items.push(menuitem);
+                
+            } else if (typeof this.uniforms[name].value === 'object' && this.uniforms[name].type !== 't') {
+                let folders = Object.keys(this.gui.__folders);
+                if (!folders.includes(name)) {
+                    this.gui.addFolder(name);
+                }
+
+                let subMenu = this.gui.__folders[name];
+
+                this.guiControllers[name] = {menu:subMenu, items:[]};
+
+                for(const key in this.uniforms[name].value) {
+                    let menuitem = subMenu.add(
+                        guiObject[name],
+                        key,
                         this.uniformSettings[name].min,
                         this.uniformSettings[name].max,
                         this.uniformSettings[name].step
                     ); 
 
                     menuitem.onChange(
-                        (val) => updateUniforms(name, val)
+                        (val) => {
+                            guiObject[name][key] = val;
+                            updateUniforms(name, guiObject[name]);
+                        }
                     );
                     
-                    this.guiControllers['Uniforms'].items.push(menuitem);
-                    
-                } else if (typeof this.uniforms[name].value === 'object') {
-                    let folders = Object.keys(this.gui.__folders);
-                    if (!folders.includes(name)) {
-                        this.gui.addFolder(name);
-                    }
-
-                    let subMenu = this.gui.__folders[name];
-
-                    this.guiControllers[name] = {menu:subMenu, items:[]};
-
-                    for(const key in this.uniforms[name].value) {
-                        let menuitem = subMenu.add(
-                            guiObject[name],
-                            key,
-                            this.uniformSettings[name].min,
-                            this.uniformSettings[name].max,
-                            this.uniformSettings[name].step
-                        ); 
-    
-                        menuitem.onChange(
-                            (val) => {
-                                guiObject[name][key] = val;
-                                updateUniforms(name, guiObject[name]);
-                            }
-                        );
-                        
-                        this.guiControllers[name].items.push(menuitem);
-                    }
-
+                    this.guiControllers[name].items.push(menuitem);
                 }
+
             }
         });
     }
@@ -914,7 +1000,7 @@ export class THREEShaderHelper {
          */
 
         this.baseCameraPos = new THREE.Vector3(0, 0, 0.65*canvas.width*canvas.height/canvas.width);
-        this.camera = new THREE.PerspectiveCamera(75, (canvas?.width || 512) / (canvas?.height || 512), 0.01, 1000);
+        this.camera = new THREE.PerspectiveCamera(75, (canvas?.width || 512) / (canvas?.height || 512), 0.01, 5000);
 
         // Set the aspect ratio and ensure the camera's position is appropriate
         this.camera.aspect = canvas.width / canvas.height;
@@ -966,7 +1052,7 @@ export class THREEShaderHelper {
         });
 
 
-        this.uniforms.iResolution.value = new THREE.Vector2(
+        if(this.uniforms.iResolution) this.uniforms.iResolution.value = new THREE.Vector2(
             this.three.meshWidth, 
             this.three.meshHeight
         ); // Required for ShaderToy shaders
@@ -1008,3 +1094,42 @@ export class THREEShaderHelper {
         this.three.renderer = null;
     }
 }
+
+
+/**
+ * 
+ *     
+    static hyperbolicVertex = `
+        varying vec2 vUv;
+
+        void main() {
+            vUv = uv;
+
+            vec4 modelPosition = modelMatrix * vec4(position, 1.0);
+
+            // Hard-coded K value for Cartesian Hyperbolic Transformation
+            float uK = 1.0;
+
+            // Cartesian Hyperbolic Transformation
+            modelPosition.x /= (modelPosition.x * modelPosition.x + uK * uK);
+            modelPosition.y /= (modelPosition.y * modelPosition.y + uK * uK);
+
+            vec4 viewPosition = viewMatrix * modelPosition;
+            vec4 projectedPosition = projectionMatrix * viewPosition;
+
+            gl_Position = projectedPosition;
+        }
+    `;
+
+    static hyperbolicFragment = `
+        varying vec2 vUv;
+
+        void main() {
+            // Visualize UVs as colors
+            vec3 color = vec3(vUv, 1.0);
+            gl_FragColor = vec4(color, 1.0);
+        }
+    `;
+
+ * 
+ */
