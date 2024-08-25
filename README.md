@@ -4,6 +4,8 @@
 
 This is a fairly straightforward utility for ThreeJS to create shader materials and apply any shaders from text with the ability to push uniform updates. It replicates a lot of functionality from ShaderToy, but we extended it to let us use arbitrary uniforms which can be generated from the shader text itself. We use it for biofeedback. It also includes its own audio decoder to get audio FFT data into the shader.
 
+### [Live Example](https://three-shader-helper.netlify.app/)
+
 ## Example
 
 To run the example, 
