@@ -23103,7 +23103,7 @@ void main() {
             
             int u_maxIterations = 75;
             
-            float r=0.7885*(sin((time/(3.+iHRV*0.01+iFFT[80]*0.001+iAudio[150]*0.0001+iHB))-1.57)*0.2+0.85);
+            float r=iAudio[75]*0.0001 + 0.7885*(sin(((iAudio[25]*0.001 + time)/(3.+iHRV*0.01+iFFT[80]*0.001+iAudio[150]*0.0001+iHB))-1.57)*0.2+0.85);
             vec2 c=vec2(r*cos((time/(3.01+iHEG+iFFT[30]*0.001-iAudio[60]*0.0001+iFrontalAlpha1Coherence))),r*sin((time/3.)));
             
             vec2 z = vec2(0.);
@@ -23416,7 +23416,8 @@ void main() {
     setMeshGeometry(type = "plane", matidx = 0) {
       if (!["plane", "sphere", "vrscreen", "halfsphere", "circle"].find((t) => {
         if (t === type) return true;
-      })) throw new Error(`Unsupported geometry, the options are 'plane','sphere','vrscreen','halfsphere','circle'`);
+      }))
+        throw new Error(`Unsupported geometry, the options are 'plane','sphere','vrscreen','halfsphere','circle'`);
       if (this.meshes[matidx]) {
         this.currentViews[matidx] = type;
         this.meshes[matidx].geometry = _THREEShaderHelper.createMeshGeometry(type, this.canvas.width, this.canvas.height);
@@ -23785,7 +23786,7 @@ void main() {
       });
     }
     // Test the renderer
-    createRenderer(canvas = this.canvas) {
+    createRenderer(canvas = this.canvas, controls = true) {
       this.gui;
       this.guiControllers = [];
       try {
@@ -23807,14 +23808,15 @@ void main() {
       this.three.renderer = new WebGLRenderer({ antialias: true, alpha: true, canvas: this.canvas });
       this.three.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       this.three.renderer.setSize(this.canvas.width, this.canvas.height);
-      this.three.controls = new OrbitControls(this.camera, this.three.renderer.domElement);
-      this.three.controls.enablePan = true;
-      this.three.controls.enableDamping = true;
-      this.three.controls.enabled = true;
-      this.three.controls.minPolarAngle = 2 * Math.PI / 6;
-      this.three.controls.maxPolarAngle = 4 * Math.PI / 6;
-      this.three.controls.minDistance = this.baseCameraPos.z;
-      this.three.controls.maxDistance = this.baseCameraPos.z * 1e3;
+      if (controls) {
+        this.three.controls = new OrbitControls(this.camera, this.three.renderer.domElement);
+        this.three.controls.enablePan = true;
+        this.three.controls.enableDamping = true;
+        this.three.controls.enabled = true;
+        this.three.controls.minPolarAngle = 2 * Math.PI / 6;
+        this.three.controls.maxPolarAngle = 4 * Math.PI / 6;
+        this.three.controls.maxDistance = this.baseCameraPos.z * 1e3;
+      }
       this.meshes.forEach((mesh) => {
         this.three.scene.add(mesh);
       });

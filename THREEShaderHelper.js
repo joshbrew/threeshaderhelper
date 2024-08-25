@@ -180,7 +180,7 @@ export class THREEShaderHelper {
             
             int u_maxIterations = 75;
             
-            float r=0.7885*(sin((time/(3.+iHRV*0.01+iFFT[80]*0.001+iAudio[150]*0.0001+iHB))-1.57)*0.2+0.85);
+            float r=iAudio[75]*0.0001 + 0.7885*(sin(((iAudio[25]*0.001 + time)/(3.+iHRV*0.01+iFFT[80]*0.001+iAudio[150]*0.0001+iHB))-1.57)*0.2+0.85);
             vec2 c=vec2(r*cos((time/(3.01+iHEG+iFFT[30]*0.001-iAudio[60]*0.0001+iFrontalAlpha1Coherence))),r*sin((time/3.)));
             
             vec2 z = vec2(0.);
@@ -980,7 +980,7 @@ export class THREEShaderHelper {
     }
 
     // Test the renderer
-    createRenderer(canvas = this.canvas) {
+    createRenderer(canvas = this.canvas, controls=true) {
         this.gui;
         this.guiControllers = [];
         try {
@@ -1031,14 +1031,16 @@ export class THREEShaderHelper {
         // this.three.renderer.domElement.style.transition = 'opacity 1s';
 
         // Controls
-        this.three.controls = new OrbitControls(this.camera, this.three.renderer.domElement);
-        this.three.controls.enablePan = true;
-        this.three.controls.enableDamping = true;
-        this.three.controls.enabled = true;
-        this.three.controls.minPolarAngle = (2 * Math.PI) / 6; // radians
-        this.three.controls.maxPolarAngle = (4 * Math.PI) / 6; // radians
-        this.three.controls.minDistance = this.baseCameraPos.z; // radians
-        this.three.controls.maxDistance = this.baseCameraPos.z * 1000; // radians
+        if(controls) {
+            this.three.controls = new OrbitControls(this.camera, this.three.renderer.domElement);
+            this.three.controls.enablePan = true;
+            this.three.controls.enableDamping = true;
+            this.three.controls.enabled = true;
+            this.three.controls.minPolarAngle = (2 * Math.PI) / 6; // radians
+            this.three.controls.maxPolarAngle = (4 * Math.PI) / 6; // radians
+            // this.three.controls.minDistance = this.baseCameraPos.z; // radians
+            this.three.controls.maxDistance = this.baseCameraPos.z * 1000; // radians
+        }
 
         //test sphere to check scene 
         // const sphereGeometry = new THREE.SphereGeometry(1, 32, 32);

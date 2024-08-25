@@ -377,7 +377,7 @@ export class THREEShaderHelper {
         };
     };
     generateGUI(uniformNames?: any[], material?: any): any;
-    createRenderer(canvas?: any): void;
+    createRenderer(canvas?: any, controls?: boolean): void;
     gui: any;
     /**
      * Camera

@@ -1,6 +1,6 @@
 {
   "name": "threeshaderhelper",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "description": "Barebones esbuild and test node server implementation. For building",
   "main": "./dist/THREEShaderHelper.js",
   "module": "./dist/THREEShaderHelper.esm.js",

@@ -41,7 +41,7 @@ export function main() {
     const shaderHelper = new THREEShaderHelper(
         canvas, 
         sounds,
-        THREEShaderHelper.juliaFragment,
+        THREEShaderHelper.defaultFragment,
         THREEShaderHelper.defaultVertex
     );
     

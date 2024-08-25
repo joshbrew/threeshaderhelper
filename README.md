@@ -94,8 +94,8 @@ Downsamples the provided array to the specified size, averaging values if necess
 Upsamples the provided data array to the specified size using linear interpolation. Useful for increasing data resolution.
 
 #### Frontend Methods
-`this.createRenderer(canvas)`
-Initializes the Three.js renderer, scene, and camera, setting up the environment for rendering the shader.
+`this.createRenderer(canvas, controls=true)`
+Initializes the Three.js renderer, scene, and camera, setting up the environment for rendering the shader. togglable orbit controls. 
 
 `this.destroyRenderer()`
 Cleans up and disposes of all renderer resources, including geometry and materials, to free up memory.
