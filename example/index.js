@@ -66,7 +66,11 @@ export function main() {
     // Instantiate the Sounds class when the button is clicked and play a default sound
     button.addEventListener('click', () => {
         const soundURL = './sample.mp3'; // Default sound URL
-        sounds.addSounds([soundURL], (sourceListIdx) => {
+        // sounds.addSounds([soundURL], (sourceListIdx) => {
+        //     sounds.playSound(sourceListIdx);
+        // });
+        //or load your own 
+        sounds.decodeLocalAudioFile((sourceListIdx) => {
             sounds.playSound(sourceListIdx);
         });
     });

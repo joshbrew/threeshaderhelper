@@ -23857,7 +23857,7 @@ void main() {
     });
     button.addEventListener("click", () => {
       const soundURL = "./sample.mp3";
-      sounds.addSounds([soundURL], (sourceListIdx) => {
+      sounds.decodeLocalAudioFile((sourceListIdx) => {
         sounds.playSound(sourceListIdx);
       });
     });
